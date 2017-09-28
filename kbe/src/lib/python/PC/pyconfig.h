@@ -218,6 +218,13 @@ typedef int pid_t;
 #define HAVE_SXS 1
 #endif
 
+/* VS 2015 defines these names with a leading underscore */
+#if _MSC_VER >= 1900
+#define timezone _timezone
+#define daylight _daylight
+#define tzname _tzname
+#endif
+
 /* define some ANSI types that are not defined in earlier Win headers */
 #if _MSC_VER >= 1200
 /* This file only exists in VC 6.0 or higher */
@@ -390,7 +397,7 @@ Py_NO_ENABLE_SHARED to find out.  Also support MS_NO_COREDLL for b/w compat */
 #else
 /* VC6, VS 2002 and eVC4 don't support the C99 LL suffix for 64-bit integer literals */
 #define Py_LL(x) x##I64
-#endif  /* _MSC_VER > 1200  */
+#endif  /* _MSC_VER > 1300  */
 #endif  /* _MSC_VER */
 
 #endif
@@ -435,6 +442,11 @@ Py_NO_ENABLE_SHARED to find out.  Also support MS_NO_COREDLL for b/w compat */
 
 /* Define to 1 if you have the `copysign' function. */
 #define HAVE_COPYSIGN 1
+
+/* Define to 1 if you have the `round' function. */
+#if _MSC_VER >= 1800
+#define HAVE_ROUND 1
+#endif
 
 /* Define to 1 if you have the `isinf' macro. */
 #define HAVE_DECL_ISINF 1

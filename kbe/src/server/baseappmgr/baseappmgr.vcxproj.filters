@@ -13,6 +13,9 @@
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
       <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
     </Filter>
+    <Filter Include="Inline Files">
+      <UniqueIdentifier>{5ed54725-f471-4e34-b542-4df3398d05ba}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="baseapp.cpp">
@@ -27,18 +30,21 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\lib\dependencies\openssl\include\openssl\applink.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="baseapp.hpp">
+    <ClInclude Include="baseapp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="baseappmgr.hpp">
+    <ClInclude Include="baseappmgr.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="baseappmgr_interface.hpp">
+    <ClInclude Include="baseappmgr_interface.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="baseappmgr_interface_macros.hpp">
+    <ClInclude Include="baseappmgr_interface_macros.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

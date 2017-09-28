@@ -2,7 +2,7 @@
 This source file is part of KBEngine
 For the latest info, see http://www.kbengine.org/
 
-Copyright (c) 2008-2012 KBEngine.
+Copyright (c) 2008-2017 KBEngine.
 
 KBEngine is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
@@ -18,13 +18,13 @@ You should have received a copy of the GNU Lesser General Public License
 along with KBEngine.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "config.hpp"
-#include "script_callbacks.hpp"
-#include "server/serverapp.hpp"
-#include "server/serverconfig.hpp"
-#include "pyscript/script.hpp"
-#include "pyscript/pyobject_pointer.hpp"
-#include "cstdkbe/smartpointer.hpp"
+#include "config.h"
+#include "script_callbacks.h"
+#include "server/serverapp.h"
+#include "server/serverconfig.h"
+#include "pyscript/script.h"
+#include "pyscript/pyobject_pointer.h"
+#include "common/smartpointer.h"
 
 namespace KBEngine
 {
@@ -44,7 +44,7 @@ ScriptCallbacks::~ScriptCallbacks()
 }
 
 //-------------------------------------------------------------------------------------
-ScriptID ScriptCallbacks::addCallback( float initialOffset, TimerHandler * pHandler )
+ScriptID ScriptCallbacks::addCallback( float initialOffset, float repeatOffset, TimerHandler * pHandler )
 {
 	if (initialOffset < 0.f)
 	{
@@ -64,8 +64,19 @@ ScriptID ScriptCallbacks::addCallback( float initialOffset, TimerHandler * pHand
 	int initialTicks = GameTime( g_kbetime +
 			initialOffset * hertz );
 
+	int repeatTicks = 0;
+
+	if (repeatOffset > 0.f)
+	{
+		repeatTicks = GameTime( repeatOffset * hertz );
+		if (repeatTicks < 1)
+		{
+			repeatTicks = 1;
+		}
+	}
+
 	TimerHandle timerHandle = timers_.add(
-			initialTicks, 0,
+			initialTicks, repeatTicks,
 			pHandler, NULL );
 
 	if (timerHandle.isSet())

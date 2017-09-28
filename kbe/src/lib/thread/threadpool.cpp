@@ -2,7 +2,7 @@
 This source file is part of KBEngine
 For the latest info, see http://www.kbengine.org/
 
-Copyright (c) 2008-2012 KBEngine.
+Copyright (c) 2008-2017 KBEngine.
 
 KBEngine is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
@@ -19,13 +19,13 @@ along with KBEngine.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 
-#include "threadpool.hpp"
+#include "threadpool.h"
 
 #ifndef CODE_INLINE
-#include "threadpool.ipp"
+#include "threadpool.inl"
 #endif
 
-#include "helper/watcher.hpp"
+#include "helper/watcher.h"
 
 namespace KBEngine
 { 
@@ -47,7 +47,7 @@ THREAD_ID TPThread::createThread(void)
 	if(pthread_create(&tidp_, NULL, TPThread::threadFunc, 
 		(void*)this)!= 0)
 	{
-		ERROR_MSG("createThread is error!");
+		ERROR_MSG("createThread error!");
 	}
 #endif
 	return tidp_;
@@ -68,6 +68,7 @@ bool TPThread::join(void)
 		{
 		case WAIT_OBJECT_0:
 			return true;
+		
 		case WAIT_TIMEOUT:
 			if(i > 20)
 			{
@@ -79,6 +80,7 @@ bool TPThread::join(void)
 				WARNING_MSG(fmt::format("TPThread::join: waiting for thread({0:p}), try={1}\n", (void*)this, i));
 			}
 			break;
+			
 		case WAIT_FAILED:
 		default:
 			ERROR_MSG(fmt::format("TPThread::join: can't join thread({0:p})\n", (void*)this));
@@ -148,7 +150,7 @@ std::string ThreadPool::printThreadWorks()
 	THREAD_MUTEX_LOCK(threadStateList_mutex_);
 	int i = 0;
 	std::list<TPThread*>::iterator itr = busyThreadList_.begin();
-	for(; itr != busyThreadList_.end(); itr++)
+	for(; itr != busyThreadList_.end(); ++itr)
 	{
 		ret += (fmt::format("{0:p}:({1}), ", (void*)(*itr), (*itr)->printWorkState()));
 		i++;
@@ -188,9 +190,9 @@ void ThreadPool::destroy()
 		std::string taskaddrs = "";
 		THREAD_MUTEX_LOCK(threadStateList_mutex_);
 
-		int count = allThreadList_.size();
+		int count = (int)allThreadList_.size();
 		std::list<TPThread*>::iterator itr = allThreadList_.begin();
-		for(; itr != allThreadList_.end(); itr++)
+		for(; itr != allThreadList_.end(); ++itr)
 		{
 			if((*itr))
 			{
@@ -214,7 +216,8 @@ void ThreadPool::destroy()
 		}
 		else
 		{
-			WARNING_MSG(fmt::format("ThreadPool::destroy(): waiting for thread({0})[{1}], try={2}\n", count, taskaddrs, itry));
+			WARNING_MSG(fmt::format("ThreadPool::destroy(): waiting for thread({0})[{1}], try={2}\n", 
+				count, taskaddrs, itry));
 		}
 	}
 
@@ -223,7 +226,7 @@ void ThreadPool::destroy()
 	KBEngine::sleep(100);
 
 	std::list<TPThread*>::iterator itr = allThreadList_.begin();
-	for(; itr != allThreadList_.end(); itr++)
+	for(; itr != allThreadList_.end(); ++itr)
 	{
 		if((*itr))
 		{
@@ -243,7 +246,7 @@ void ThreadPool::destroy()
 			finiTaskList_.size()));
 
 		std::list<TPTask*>::iterator finiiter  = finiTaskList_.begin();
-		for(; finiiter != finiTaskList_.end(); finiiter++)
+		for(; finiiter != finiTaskList_.end(); ++finiiter)
 		{
 			delete (*finiiter);
 		}
@@ -315,26 +318,28 @@ void ThreadPool::addFiniTask(TPTask* tptask)
 bool ThreadPool::createThreadPool(uint32 inewThreadCount, 
 	uint32 inormalMaxThreadCount, uint32 imaxThreadCount)
 {
-	assert(!isInitialize_ && "ThreadPool is exist!");
+	assert(!isInitialize_);
 	INFO_MSG("ThreadPool::createThreadPool: creating  threadpool...\n");
 	
 	extraNewAddThreadCount_ = inewThreadCount;
 	normalThreadCount_ = inormalMaxThreadCount;
 	maxThreadCount_ = imaxThreadCount;
 	
-	for(uint32 i=0; i<normalThreadCount_; i++)
+	for(uint32 i=0; i<normalThreadCount_; ++i)
 	{
 		TPThread* tptd = createThread(0);
 		
 		if(!tptd)
 		{
-			ERROR_MSG("ThreadPool::createThreadPool: create thread is error! \n");
+			ERROR_MSG("ThreadPool::createThreadPool: error! \n");
+			return false;
 		}
 
 		currentFreeThreadCount_++;	
 		currentThreadCount_++;
-		freeThreadList_.push_back(tptd);										// 闲置的线程列表
-		allThreadList_.push_back(tptd);										// 所有的线程列表
+		
+		freeThreadList_.push_back(tptd);
+		allThreadList_.push_back(tptd);
 	}
 	
 	INFO_MSG(fmt::format("ThreadPool::createThreadPool: successfully({0}), "
@@ -343,18 +348,29 @@ bool ThreadPool::createThreadPool(uint32 inewThreadCount,
 
 	isInitialize_ = true;
 	KBEngine::sleep(100);
-
 	return true;
 }
 
 //-------------------------------------------------------------------------------------
 void ThreadPool::onMainThreadTick()
 {
+	std::vector<TPTask*> finitasks;
+
 	THREAD_MUTEX_LOCK(finiTaskList_mutex_);
 
-	std::list<TPTask*>::iterator finiiter  = finiTaskList_.begin();
+	if(finiTaskList_.size() == 0)
+	{
+		THREAD_MUTEX_UNLOCK(finiTaskList_mutex_);	
+		return;
+	}
 
-	for(; finiiter != finiTaskList_.end(); )
+	std::copy(finiTaskList_.begin(), finiTaskList_.end(), std::back_inserter(finitasks));   
+	finiTaskList_.clear();
+	THREAD_MUTEX_UNLOCK(finiTaskList_mutex_);	
+
+	std::vector<TPTask*>::iterator finiiter  = finitasks.begin();
+
+	for(; finiiter != finitasks.end(); )
 	{
 		thread::TPTask::TPTaskState state = (*finiiter)->presentMainThread();
 
@@ -362,24 +378,28 @@ void ThreadPool::onMainThreadTick()
 		{
 		case thread::TPTask::TPTASK_STATE_COMPLETED:
 			delete (*finiiter);
-			finiTaskList_.erase(finiiter++);
+			finiiter = finitasks.erase(finiiter);
 			--finiTaskList_count_;
 			break;
+			
 		case thread::TPTask::TPTASK_STATE_CONTINUE_CHILDTHREAD:
 			this->addTask((*finiiter));
-			finiTaskList_.erase(finiiter++);
+			finiiter = finitasks.erase(finiiter);
 			--finiTaskList_count_;
 			break;
+			
 		case thread::TPTask::TPTASK_STATE_CONTINUE_MAINTHREAD:
+			THREAD_MUTEX_LOCK(finiTaskList_mutex_);
+			finiTaskList_.push_back((*finiiter));
+			THREAD_MUTEX_UNLOCK(finiTaskList_mutex_);	
 			++finiiter;
 			break;
+			
 		default:
 			KBE_ASSERT(false);
 			break;
 		};
 	}
-
-	THREAD_MUTEX_UNLOCK(finiTaskList_mutex_);	
 }
 
 //-------------------------------------------------------------------------------------
@@ -400,10 +420,13 @@ void ThreadPool::bufferTask(TPTask* tptask)
 }
 
 //-------------------------------------------------------------------------------------
-TPThread* ThreadPool::createThread(int threadWaitSecond)
+TPThread* ThreadPool::createThread(int threadWaitSecond, bool threadStartsImmediately)
 {
 	TPThread* tptd = new TPThread(this, threadWaitSecond);
-	tptd->createThread();
+
+	if (threadStartsImmediately)
+		tptd->createThread();
+
 	return tptd;
 }	
 
@@ -495,8 +518,34 @@ bool ThreadPool::removeHangThread(TPThread* tptd)
 		return false;
 	}
 	
-	THREAD_MUTEX_UNLOCK(threadStateList_mutex_);		
+	THREAD_MUTEX_UNLOCK(threadStateList_mutex_);
 	return true;		
+}
+
+//-------------------------------------------------------------------------------------
+bool ThreadPool::_addTask(TPTask* tptask)
+{
+	std::list<TPThread*>::iterator itr = freeThreadList_.begin();
+	TPThread* tptd = (TPThread*)(*itr);
+	freeThreadList_.erase(itr);
+	busyThreadList_.push_back(tptd);
+	--currentFreeThreadCount_;
+
+	//INFO_MSG("ThreadPool::currFree:%d, currThreadCount:%d, busy:[%d]\n",
+	//		 currentFreeThreadCount_, currentThreadCount_, busyThreadList_count_);
+
+	tptd->task(tptask);
+
+#if KBE_PLATFORM == PLATFORM_WIN32
+	if (tptd->sendCondSignal() == 0) {
+#else
+	if (tptd->sendCondSignal() != 0) {
+#endif
+		ERROR_MSG("ThreadPool::addTask: pthread_cond_signal error!\n");
+		return false;
+	}
+
+	return true;
 }
 
 //-------------------------------------------------------------------------------------
@@ -505,29 +554,10 @@ bool ThreadPool::addTask(TPTask* tptask)
 	THREAD_MUTEX_LOCK(threadStateList_mutex_);
 	if(currentFreeThreadCount_ > 0)
 	{
-		std::list<TPThread*>::iterator itr = freeThreadList_.begin();
-		TPThread* tptd = (TPThread*)(*itr);
-		freeThreadList_.erase(itr);
-		busyThreadList_.push_back(tptd);
-		--currentFreeThreadCount_;
-		
-		//INFO_MSG("ThreadPool::currFree:%d, currThreadCount:%d, busy:[%d]\n",
-		//		 currentFreeThreadCount_, currentThreadCount_, busyThreadList_count_);
-		
-		tptd->task(tptask);												// 给线程设置新任务	
-		
-#if KBE_PLATFORM == PLATFORM_WIN32
-		if(tptd->sendCondSignal()== 0){
-#else
-		if(tptd->sendCondSignal()!= 0){
-#endif
-			ERROR_MSG("ThreadPool::addTask: pthread_cond_signal is error!\n");
-			THREAD_MUTEX_UNLOCK(threadStateList_mutex_);
-			return false;
-		}
-		
+		bool ret = _addTask(tptask);
 		THREAD_MUTEX_UNLOCK(threadStateList_mutex_);
-		return true;
+
+		return ret;
 	}
 	
 	bufferTask(tptask);
@@ -542,23 +572,50 @@ bool ThreadPool::addTask(TPTask* tptask)
 		return false;
 	}
 
-	for(uint32 i=0; i<extraNewAddThreadCount_; i++)
+	for(uint32 i=0; i<extraNewAddThreadCount_; ++i)
 	{
-		TPThread* tptd = createThread(300);									// 设定5分钟未使用则退出的线程
+		bool threadStartsImmediately = i > 0;
+
+		// 设定5分钟未使用则退出的线程
+		TPThread* tptd = createThread(ThreadPool::timeout, threadStartsImmediately);
 		if(!tptd)
 		{
 #if KBE_PLATFORM == PLATFORM_WIN32		
-			ERROR_MSG("ThreadPool::addTask: the ThreadPool create thread is error! ... \n");
+			ERROR_MSG("ThreadPool::addTask: the ThreadPool create thread error! ... \n");
 #else
-			ERROR_MSG(fmt::format("ThreadPool::addTask: the ThreadPool create thread is error:{0}\n", 
+			ERROR_MSG(fmt::format("ThreadPool::addTask: the ThreadPool create thread error:{0}\n", 
 				kbe_strerror()));
 #endif				
 		}
+		
+		// 所有的线程列表
+		allThreadList_.push_back(tptd);	
+		
+		if (threadStartsImmediately)
+		{
+			// 闲置的线程列表
+			freeThreadList_.push_back(tptd);
+			++currentFreeThreadCount_;
+		}
+		else
+		{
+			TPTask * pTask = tptd->tryGetTask();
+			if (pTask)
+			{
+				busyThreadList_.push_back(tptd);
+				tptd->task(pTask);
+			}
+			else
+			{
+				freeThreadList_.push_back(tptd);
+				++currentFreeThreadCount_;
+			}
 
-		allThreadList_.push_back(tptd);										// 所有的线程列表
-		freeThreadList_.push_back(tptd);									// 闲置的线程列表
+			tptd->createThread();
+		}
+
 		++currentThreadCount_;
-		++currentFreeThreadCount_;	
+		
 		
 	}
 	
@@ -635,13 +692,15 @@ void* TPThread::threadFunc(void* arg)
 		{
 			tptd->inc_done_tasks();
 			tptd->onProcessTaskStart(task);
-			tptd->processTask(task);							// 处理该任务								
+			tptd->processTask(task);
 			tptd->onProcessTaskEnd(task);
-
-			TPTask * task1 = tptd->tryGetTask();				// 尝试继续从任务队列里取出一个繁忙的未处理的任务
+			
+			// 尝试继续从任务队列里取出一个繁忙的未处理的任务
+			TPTask * task1 = tptd->tryGetTask();
 
 			if(!task1)
 			{
+				tptd->state_ = THREAD_STATE_PENDING;
 				tptd->onTaskCompleted();
 				break;
 			}
@@ -698,13 +757,13 @@ bool TPThread::onWaitCondSignal(void)
 		// 如果是因为超时了， 说明这个线程很久没有被用到， 我们应该注销这个线程。
 		// 通知ThreadPool注销自己
 		if (ret == WAIT_TIMEOUT)
-		{																	
-			threadPool_->removeHangThread(this);							
+		{
+			threadPool_->removeHangThread(this);
 			return false;
 		}
 		else if(ret != WAIT_OBJECT_0)
 		{
-			ERROR_MSG(fmt::format("TPThread::onWaitCondSignal: WaitForSingleObject is error, ret={0}\n", 
+			ERROR_MSG(fmt::format("TPThread::onWaitCondSignal: WaitForSingleObject error, ret={0}\n", 
 				ret));
 		}
 	}	
@@ -738,7 +797,7 @@ bool TPThread::onWaitCondSignal(void)
 		}
 		else if(ret != 0)
 		{
-			ERROR_MSG(fmt::format("TPThread::onWaitCondSignal: pthread_cond_timedwait is error, {0}\n", 
+			ERROR_MSG(fmt::format("TPThread::onWaitCondSignal: pthread_cond_wait error, {0}\n", 
 				kbe_strerror()));
 		}
 	}

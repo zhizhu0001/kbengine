@@ -2,7 +2,7 @@
 This source file is part of KBEngine
 For the latest info, see http://www.kbengine.org/
 
-Copyright (c) 2008-2012 KBEngine.
+Copyright (c) 2008-2017 KBEngine.
 
 KBEngine is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
@@ -18,9 +18,9 @@ You should have received a copy of the GNU Lesser General Public License
 along with KBEngine.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "resmgr.hpp"
-#include "helper/watcher.hpp"
-#include "thread/threadguard.hpp"
+#include "resmgr.h"
+#include "helper/watcher.h"
+#include "thread/threadguard.h"
 
 #if KBE_PLATFORM != PLATFORM_WIN32
 #include <unistd.h>
@@ -58,9 +58,9 @@ Resmgr::~Resmgr()
 //-------------------------------------------------------------------------------------
 bool Resmgr::initializeWatcher()
 {
-	WATCH_OBJECT("syspaths/KBE_ROOT", kb_env_.root);
+	WATCH_OBJECT("syspaths/KBE_ROOT", kb_env_.root_path);
 	WATCH_OBJECT("syspaths/KBE_RES_PATH", kb_env_.res_path);
-	WATCH_OBJECT("syspaths/KBE_HYBRID_PATH", kb_env_.hybrid_path);
+	WATCH_OBJECT("syspaths/KBE_BIN_PATH", kb_env_.bin_path);
 	return true;
 }
 
@@ -75,16 +75,16 @@ void Resmgr::autoSetPaths()
 	std::string s = path;
 	size_t pos1;
 
-	pos1 = s.find("\\kbe\\bin\\");
-	if(pos1 == std::string::npos)
-		pos1 = s.find("/kbe/bin/");
+	strutil::kbe_replace(s, "\\", "/");
+	strutil::kbe_replace(s, "//", "/");
+	pos1 = s.find("/kbe/bin/");
 
 	if(pos1 == std::string::npos)
 		return;
 
 	s = s.substr(0, pos1 + 1);
-	kb_env_.root = s;
-	kb_env_.res_path = kb_env_.root + "kbe/res/;" + kb_env_.root + "/demo/;" + kb_env_.root + "/demo/res/";
+	kb_env_.root_path = s;
+	kb_env_.res_path = kb_env_.root_path + "kbe/res/;" + kb_env_.root_path + "/assets/;" + kb_env_.root_path + "/assets/scripts/;" + kb_env_.root_path + "/assets/res/";
 }
 
 //-------------------------------------------------------------------------------------
@@ -92,24 +92,24 @@ void Resmgr::updatePaths()
 {
 	char ch;
 	
-	if(kb_env_.root.size() > 0)
+	if (kb_env_.root_path.size() > 0)
 	{
-		ch =  kb_env_.root.at(kb_env_.root.size() - 1);
+		ch = kb_env_.root_path.at(kb_env_.root_path.size() - 1);
 		if(ch != '/' && ch != '\\')
-			kb_env_.root += "/";
+			kb_env_.root_path += "/";
 
-		strutil::kbe_replace(kb_env_.root, "\\", "/");
-		strutil::kbe_replace(kb_env_.root, "//", "/");
+		strutil::kbe_replace(kb_env_.root_path, "\\", "/");
+		strutil::kbe_replace(kb_env_.root_path, "//", "/");
 	}
 
-	if(kb_env_.hybrid_path.size() > 0)
+	if(kb_env_.bin_path.size() > 0)
 	{
-		ch =  kb_env_.hybrid_path.at(kb_env_.hybrid_path.size() - 1);
+		ch =  kb_env_.bin_path.at(kb_env_.bin_path.size() - 1);
 		if(ch != '/' && ch != '\\')
-			kb_env_.hybrid_path += "/";
+			kb_env_.bin_path += "/";
 
-		strutil::kbe_replace(kb_env_.hybrid_path, "\\", "/");
-		strutil::kbe_replace(kb_env_.hybrid_path, "//", "/");
+		strutil::kbe_replace(kb_env_.bin_path, "\\", "/");
+		strutil::kbe_replace(kb_env_.bin_path, "//", "/");
 	}
 
 	respaths_.clear();
@@ -129,7 +129,7 @@ void Resmgr::updatePaths()
 
 	kb_env_.res_path = "";
 	std::vector<std::string>::iterator iter = respaths_.begin();
-	for(; iter != respaths_.end(); iter++)
+	for(; iter != respaths_.end(); ++iter)
 	{
 		if((*iter).size() <= 0)
 			continue;
@@ -155,24 +155,25 @@ bool Resmgr::initialize()
 	//	return true;
 
 	// 获取引擎环境配置
-	kb_env_.root			= getenv("KBE_ROOT") == NULL ? "" : getenv("KBE_ROOT");
+	kb_env_.root_path		= getenv("KBE_ROOT") == NULL ? "" : getenv("KBE_ROOT");
 	kb_env_.res_path		= getenv("KBE_RES_PATH") == NULL ? "" : getenv("KBE_RES_PATH"); 
-	kb_env_.hybrid_path		= getenv("KBE_HYBRID_PATH") == NULL ? "" : getenv("KBE_HYBRID_PATH"); 
+	kb_env_.bin_path		= getenv("KBE_BIN_PATH") == NULL ? "" : getenv("KBE_BIN_PATH"); 
 
-	//kb_env_.root				= "/home/kbengine/";
-	//kb_env_.res_path			= "/home/kbengine/kbe/res/;/home/kbengine/demo/;/home/kbengine/demo/res/"; 
-	//kb_env_.hybrid_path		= "/home/kbengine/kbe/bin/Hybrid/"; 
+	//kb_env_.root			= "/home/kbengine/";
+	//kb_env_.res_path		= "/home/kbengine/kbe/res/;/home/kbengine/assets/;/home/kbengine/assets/scripts/;/home/kbengine/assets/res/"; 
+	//kb_env_.bin_path		= "/home/kbengine/kbe/bin/server/"; 
 	updatePaths();
 
-	if(kb_env_.root == "" || kb_env_.res_path == "")
+	if (kb_env_.root_path == "" || kb_env_.res_path == "")
 		autoSetPaths();
 
 	updatePaths();
-	if(getPySysResPath() == "" || getPyUserResPath() == "")
+	if(getPySysResPath() == "" || getPyUserResPath() == "" || getPyUserScriptsPath() == "")
 	{
-		printf("[ERROR] Resmgr::initialize: not set environment, (KBE_ROOT, KBE_RES_PATH, KBE_HYBRID_PATH) invalid!\n");
+		printf("[ERROR] Resmgr::initialize: not set environment, (KBE_ROOT=%s, KBE_RES_PATH=%s, KBE_BIN_PATH=%s) invalid!\n", 
+			kb_env_.root_path.c_str(), kb_env_.res_path.c_str(), kb_env_.bin_path.c_str());
 #if KBE_PLATFORM == PLATFORM_WIN32
-		::MessageBox(0, L"Resmgr::initialize: not set environment, (KBE_ROOT, KBE_RES_PATH, KBE_HYBRID_PATH) invalid!\n", L"ERROR", MB_ICONERROR);
+		::MessageBox(0, L"Resmgr::initialize: not set environment, (KBE_ROOT, KBE_RES_PATH, KBE_BIN_PATH) invalid!\n", L"ERROR", MB_ICONERROR);
 #endif
 	}
 
@@ -185,9 +186,16 @@ bool Resmgr::initialize()
 //-------------------------------------------------------------------------------------
 void Resmgr::print(void)
 {
-	INFO_MSG(fmt::format("Resmgr::initialize: KBE_ROOT={0}\n", kb_env_.root));
+	INFO_MSG(fmt::format("Resmgr::initialize: KBE_ROOT={0}\n", kb_env_.root_path));
 	INFO_MSG(fmt::format("Resmgr::initialize: KBE_RES_PATH={0}\n", kb_env_.res_path));
-	INFO_MSG(fmt::format("Resmgr::initialize: KBE_HYBRID_PATH={0}\n", kb_env_.hybrid_path));
+	INFO_MSG(fmt::format("Resmgr::initialize: KBE_BIN_PATH={0}\n", kb_env_.bin_path));
+
+#if KBE_PLATFORM == PLATFORM_WIN32
+	printf("%s", fmt::format("KBE_ROOT = {0}\n", kb_env_.root_path).c_str());
+	printf("%s", fmt::format("KBE_RES_PATH = {0}\n", kb_env_.res_path).c_str());
+	printf("%s", fmt::format("KBE_BIN_PATH = {0}\n", kb_env_.bin_path).c_str());
+	printf("\n");
+#endif
 }
 
 //-------------------------------------------------------------------------------------
@@ -201,17 +209,15 @@ std::string Resmgr::matchRes(const char* res)
 {
 	std::vector<std::string>::iterator iter = respaths_.begin();
 
-	for(; iter != respaths_.end(); iter++)
+	for(; iter != respaths_.end(); ++iter)
 	{
 		std::string fpath = ((*iter) + res);
 
 		strutil::kbe_replace(fpath, "\\", "/");
 		strutil::kbe_replace(fpath, "//", "/");
 
-		FILE * f = fopen (fpath.c_str(), "r");
-		if(f != NULL)
+		if (access(fpath.c_str(), 0) == 0)
 		{
-			fclose(f);
 			return fpath;
 		}
 	}
@@ -224,17 +230,15 @@ bool Resmgr::hasRes(const std::string& res)
 {
 	std::vector<std::string>::iterator iter = respaths_.begin();
 
-	for(; iter != respaths_.end(); iter++)
+	for(; iter != respaths_.end(); ++iter)
 	{
 		std::string fpath = ((*iter) + res);
 
 		strutil::kbe_replace(fpath, "\\", "/");
 		strutil::kbe_replace(fpath, "//", "/");
 
-		FILE * f = fopen (fpath.c_str(), "r");
-		if(f != NULL)
+		if (access(fpath.c_str(), 0) == 0)
 		{
-			fclose(f);
 			return true;
 		}
 	}
@@ -247,7 +251,7 @@ FILE* Resmgr::openRes(std::string res, const char* mode)
 {
 	std::vector<std::string>::iterator iter = respaths_.begin();
 
-	for(; iter != respaths_.end(); iter++)
+	for(; iter != respaths_.end(); ++iter)
 	{
 		std::string fpath = ((*iter) + res);
 
@@ -326,7 +330,7 @@ bool Resmgr::listPathRes(std::wstring path, const std::wstring& extendName, std:
 					std::vector<std::wstring> vec;
 					strutil::kbe_split<wchar_t>(wstr, L'.', vec);
 
-					for(size_t ext = 0; ext < extendNames.size(); ext++)
+					for(size_t ext = 0; ext < extendNames.size(); ++ext)
 					{
 						if(extendNames[ext].size() > 0 && vec.size() > 1 && vec[vec.size() - 1] == extendNames[ext])
 						{
@@ -386,7 +390,7 @@ bool Resmgr::listPathRes(std::wstring path, const std::wstring& extendName, std:
 					std::vector<std::wstring> vec;
 					strutil::kbe_split<wchar_t>(FindFileData.cFileName, L'.', vec);
 
-					for(size_t ext = 0; ext < extendNames.size(); ext++)
+					for(size_t ext = 0; ext < extendNames.size(); ++ext)
 					{
 						if(extendNames[ext].size() > 0 && vec.size() > 1 && vec[vec.size() - 1] == extendNames[ext])
 						{
@@ -427,7 +431,7 @@ std::string Resmgr::matchPath(const char* path)
 	strutil::kbe_replace(npath, "\\", "/");
 	strutil::kbe_replace(npath, "//", "/");
 
-	for(; iter != respaths_.end(); iter++)
+	for(; iter != respaths_.end(); ++iter)
 	{
 		std::string fpath = ((*iter) + npath);
 
@@ -453,11 +457,16 @@ std::string Resmgr::getPySysResPath()
 		respath = matchRes("server/kbengine_defs.xml");
 		std::vector<std::string> tmpvec;
 		tmpvec = KBEngine::strutil::kbe_splits(respath, "server/kbengine_defs.xml");
+
 		if(tmpvec.size() > 1)
+		{
 			respath = tmpvec[0];
+		}
 		else
+		{
 			if(respaths_.size() > 0)
 				respath = respaths_[0];
+		}
 	}
 
 	return respath;
@@ -473,16 +482,59 @@ std::string Resmgr::getPyUserResPath()
 		respath = matchRes("server/kbengine.xml");
 		std::vector<std::string> tmpvec;
 		tmpvec = KBEngine::strutil::kbe_splits(respath, "server/kbengine.xml");
+
 		if(tmpvec.size() > 1)
+		{
 			respath = tmpvec[0];
+		}
 		else
+		{
 			if(respaths_.size() > 1)
 				respath = respaths_[1];
 			else if(respaths_.size() > 0)
 				respath = respaths_[0];
+		}
 	}
 
 	return respath;
+}
+
+//-------------------------------------------------------------------------------------
+std::string Resmgr::getPyUserScriptsPath()
+{
+	static std::string path = "";
+
+	if(path == "")
+	{
+		std::string entities_xml = "entities.xml";
+		path = matchRes(entities_xml);
+
+		if(path == entities_xml)
+		{
+			entities_xml = "scripts/" + entities_xml;
+			path = matchRes(entities_xml);
+			entities_xml = "entities.xml";
+		}
+
+
+		std::vector<std::string> tmpvec;
+		tmpvec = KBEngine::strutil::kbe_splits(path, entities_xml);
+		if(tmpvec.size() > 1)
+		{
+			path = tmpvec[0];
+		}
+		else
+		{
+			if(respaths_.size() > 2)
+				path = respaths_[2];
+			else if(respaths_.size() > 1)
+				path = respaths_[1];
+			else if(respaths_.size() > 0)
+				path = respaths_[0];
+		}
+	}
+
+	return path;
 }
 
 //-------------------------------------------------------------------------------------

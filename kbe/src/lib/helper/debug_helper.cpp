@@ -2,7 +2,7 @@
 This source file is part of KBEngine
 For the latest info, see http://www.kbengine.org/
 
-Copyright (c) 2008-2012 KBEngine.
+Copyright (c) 2008-2017 KBEngine.
 
 KBEngine is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
@@ -19,26 +19,29 @@ along with KBEngine.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 
-#include "debug_helper.hpp"
-#include "profile.hpp"
-#include "cstdkbe/cstdkbe.hpp"
-#include "cstdkbe/timer.hpp"
-#include "thread/threadguard.hpp"
-#include "network/channel.hpp"
-#include "resmgr/resmgr.hpp"
-#include "network/bundle.hpp"
-#include "network/event_dispatcher.hpp"
-#include "network/network_interface.hpp"
-#include "network/tcp_packet.hpp"
-#include "server/serverconfig.hpp"
+#include "debug_helper.h"
+#include "profile.h"
+#include "common/common.h"
+#include "common/timer.h"
+#include "thread/threadguard.h"
+#include "network/channel.h"
+#include "resmgr/resmgr.h"
+#include "network/bundle.h"
+#include "network/event_dispatcher.h"
+#include "network/network_interface.h"
+#include "network/tcp_packet.h"
+#include "server/serverconfig.h"
 
 #ifdef unix
 #include <unistd.h>
 #include <syslog.h>
 #endif
 
+#include <sys/timeb.h>
+
 #ifndef NO_USE_LOG4CXX
 #include "log4cxx/logger.h"
+#include "log4cxx/logmanager.h"
 #include "log4cxx/net/socketappender.h"
 #include "log4cxx/fileappender.h"
 #include "log4cxx/helpers/inetaddress.h"
@@ -46,14 +49,14 @@ along with KBEngine.  If not, see <http://www.gnu.org/licenses/>.
 #include "log4cxx/patternlayout.h"
 #include "log4cxx/logstring.h"
 #include "log4cxx/basicconfigurator.h"
-#include "helper/script_loglevel.hpp"
+#include "helper/script_loglevel.h"
 #if KBE_PLATFORM == PLATFORM_WIN32
 #pragma comment (lib, "Mswsock.lib")
 #pragma comment( lib, "odbc32.lib" )
 #endif
 #endif
 
-#include "../../server/tools/message_log/messagelog_interface.hpp"
+#include "../../server/tools/logger/logger_interface.h"
 
 namespace KBEngine{
 	
@@ -63,11 +66,71 @@ DebugHelper dbghelper;
 ProfileVal g_syncLogProfile("syncLog");
 
 #ifndef NO_USE_LOG4CXX
-log4cxx::LoggerPtr g_logger(log4cxx::Logger::getLogger("default"));
+log4cxx::LoggerPtr g_logger(log4cxx::Logger::getLogger(""));
+
+#define KBE_LOG4CXX_ERROR(logger, s)	\
+	{	\
+		try {	\
+			LOG4CXX_ERROR(logger, s);	\
+		}	\
+		catch (const log4cxx::helpers::IOException& ioex) {	\
+			printf("IOException: %s\nERROR=%s\n", ioex.what(), s.c_str());	\
+		}	\
+    }
+
+#define KBE_LOG4CXX_WARN(logger, s)	\
+	{	\
+		try {	\
+			LOG4CXX_WARN(logger, s);	\
+		}	\
+		catch (const log4cxx::helpers::IOException& ioex) {	\
+			printf("IOException: %s\nWARN=%s\n", ioex.what(), s.c_str());	\
+		}	\
+    }
+    
+#define KBE_LOG4CXX_INFO(logger, s)	\
+	{	\
+		try {	\
+			LOG4CXX_INFO(logger, s);	\
+		}	\
+		catch (const log4cxx::helpers::IOException& ioex) {	\
+			printf("IOException: %s\nINFO=%s\n", ioex.what(), s.c_str());	\
+		}	\
+    }
+    
+#define KBE_LOG4CXX_DEBUG(logger, s)	\
+	{	\
+		try {	\
+			LOG4CXX_DEBUG(logger, s);	\
+		}	\
+		catch (const log4cxx::helpers::IOException& ioex) {	\
+			printf("IOException: %s\nDEBUG=%s\n", ioex.what(), s.c_str());	\
+		}	\
+    }
+
+#define KBE_LOG4CXX_FATAL(logger, s)	\
+	{	\
+		try {	\
+			LOG4CXX_FATAL(logger, s);	\
+		}	\
+		catch (const log4cxx::helpers::IOException& ioex) {	\
+			printf("IOException: %s\nFATAL=%s\n", ioex.what(), s.c_str());	\
+		}	\
+    }
+    
+#define KBE_LOG4CXX_LOG(logger, level, s)	\
+	{	\
+		try {	\
+			LOG4CXX_LOG(logger, level, s);	\
+		}	\
+		catch (const log4cxx::helpers::IOException& ioex) {	\
+			printf("IOException: %s\nLOG=%s\n", ioex.what(), s.c_str());	\
+		}	\
+    }
+    
 #endif
 
 #define DBG_PT_SIZE 1024 * 4
-char _g_buf[DBG_PT_SIZE];
 
 bool g_shouldWriteToSyslog = false;
 
@@ -76,10 +139,30 @@ void myassert(const char * exp, const char * func, const char * file, unsigned i
 {
 	DebugHelper::getSingleton().backtrace_msg();
 	std::string s = (fmt::format("assertion failed: {}, file {}, line {}, at: {}\n", exp, file, line, func));
-	printf("%s", (std::string("[ASSERT]: ") + s).c_str());
+	printf("%s%02d: %s", COMPONENT_NAME_EX_2(g_componentType), g_componentGroupOrder, (std::string("[ASSERT]: ") + s).c_str());
+
 	dbghelper.print_msg(s);
     abort();
 }
+#endif
+
+#if KBE_PLATFORM == PLATFORM_WIN32
+	#define ALERT_LOG_TO(NAME, CHANGED)							\
+	{															\
+		wchar_t exe_path[MAX_PATH];								\
+		memset(exe_path, 0, MAX_PATH * sizeof(wchar_t));		\
+		GetCurrentDirectory(MAX_PATH, exe_path);				\
+																\
+		char* ccattr = strutil::wchar2char(exe_path);			\
+		if(CHANGED)												\
+			printf("Logging(changed) to: %s/logs/"NAME"%s.*.log\n\n", ccattr, COMPONENT_NAME_EX(g_componentType));\
+		else													\
+			printf("Logging to: %s/logs/"NAME"%s.*.log\n\n", ccattr, COMPONENT_NAME_EX(g_componentType));\
+		free(ccattr);											\
+	}															\
+
+#else
+#define ALERT_LOG_TO(NAME, CHANGED) {}
 #endif
 
 //-------------------------------------------------------------------------------------
@@ -145,7 +228,6 @@ public:
 				pActiveTimerHandle_ = new TimerHandle();
 				(*pActiveTimerHandle_) = DebugHelper::getSingleton().pDispatcher()->addTimer(1000000 / 10,
 												this, (void *)TIMEOUT_ACTIVE_TICK);
-
 			}
 		}
 	}
@@ -157,12 +239,12 @@ private:
 DebugHelperSyncHandler* g_pDebugHelperSyncHandler = NULL;
 
 //-------------------------------------------------------------------------------------
-DebugHelper::DebugHelper():
+DebugHelper::DebugHelper() :
 _logfile(NULL),
 _currFile(),
 _currFuncName(),
 _currLine(0),
-messagelogAddr_(),
+loggerAddr_(),
 logMutex(),
 bufferedLogPackets_(),
 hasBufferedLogPackets_(0),
@@ -170,7 +252,14 @@ pNetworkInterface_(NULL),
 pDispatcher_(NULL),
 scriptMsgType_(log4cxx::ScriptLevel::SCRIPT_INT),
 noSyncLog_(false),
-canLogFile_(true)
+canLogFile_(true),
+
+#if KBE_PLATFORM == PLATFORM_WIN32
+mainThreadID_(GetCurrentThreadId()),
+#else
+mainThreadID_(pthread_self()),
+#endif
+memoryStreamPool_("DebugHelperMemoryStream")
 {
 	g_pDebugHelperSyncHandler = new DebugHelperSyncHandler();
 }
@@ -178,9 +267,7 @@ canLogFile_(true)
 //-------------------------------------------------------------------------------------
 DebugHelper::~DebugHelper()
 {
-	clearBufferedLog(true);
-
-	// SAFE_RELEASE(g_pDebugHelperSyncHandler);
+	finalise(true);
 }	
 
 //-------------------------------------------------------------------------------------
@@ -195,7 +282,7 @@ std::string DebugHelper::getLogName()
 #ifndef NO_USE_LOG4CXX
 	/*
 	log4cxx::FileAppenderPtr appender = (log4cxx::FileAppenderPtr)g_logger->getAppender(log4cxx::LogString(L"R"));
-	if(appender->getFile().size() == 0 || appender == NULL)
+	if(appender == NULL || appender->getFile().size() == 0)
 		return "";
 
 	char* ccattr = strutil::wchar2char(appender->getFile().c_str());
@@ -210,10 +297,10 @@ std::string DebugHelper::getLogName()
 }
 
 //-------------------------------------------------------------------------------------
-void DebugHelper::changeLogger(std::string name)
+void DebugHelper::changeLogger(const std::string& name)
 {
 #ifndef NO_USE_LOG4CXX
-	g_logger = log4cxx::Logger::getLogger(name.c_str());
+	g_logger = log4cxx::Logger::getLogger(name);
 #endif
 }
 
@@ -230,49 +317,128 @@ void DebugHelper::unlockthread()
 }
 
 //-------------------------------------------------------------------------------------
-void DebugHelper::initHelper(COMPONENT_TYPE componentType)
+void DebugHelper::initialize(COMPONENT_TYPE componentType)
 {
 #ifndef NO_USE_LOG4CXX
-	g_logger = log4cxx::Logger::getLogger(COMPONENT_NAME_EX(componentType));
-	char helpConfig[256];
-
-	if(componentType == CLIENT_TYPE)
+	
+	char helpConfig[MAX_PATH];
+	if(componentType == CLIENT_TYPE || componentType == CONSOLE_TYPE)
 	{
-		kbe_snprintf(helpConfig, 256, "log4j.properties");
+		kbe_snprintf(helpConfig, MAX_PATH, "log4j.properties");
+		log4cxx::PropertyConfigurator::configure(Resmgr::getSingleton().matchRes(helpConfig).c_str());
 	}
 	else
 	{
-		kbe_snprintf(helpConfig, 256, "server/log4cxx_properties/%s.properties", COMPONENT_NAME_EX(componentType));
+		std::string cfg;
+
+		std::string kbengine_xml_path = Resmgr::getSingleton().matchRes("server/kbengine.xml");
+		if (kbengine_xml_path != "server/kbengine.xml")
+		{
+			kbe_snprintf(helpConfig, MAX_PATH, "log4cxx_properties/%s.properties", COMPONENT_NAME_EX(componentType));
+			strutil::kbe_replace(kbengine_xml_path, "kbengine.xml", helpConfig);
+
+			FILE * f = fopen(kbengine_xml_path.c_str(), "r");
+			if (f == NULL)
+			{
+				kbe_snprintf(helpConfig, MAX_PATH, "server/log4cxx_properties/%s.properties", COMPONENT_NAME_EX(componentType));
+				cfg = Resmgr::getSingleton().matchRes(helpConfig);
+			}
+			else
+			{
+				fclose(f);
+				cfg = kbengine_xml_path;
+			}
+		}
+		else
+		{
+			kbe_snprintf(helpConfig, MAX_PATH, "server/log4cxx_properties/%s.properties", COMPONENT_NAME_EX(componentType));
+			cfg = Resmgr::getSingleton().matchRes(helpConfig);
+		}
+
+		log4cxx::PropertyConfigurator::configure(cfg.c_str());
 	}
 
-	log4cxx::PropertyConfigurator::configure(Resmgr::getSingleton().matchRes(helpConfig).c_str());
+	g_logger = log4cxx::Logger::getRootLogger();
+	LOG4CXX_INFO(g_logger, "\n");
 #endif
+
+	ALERT_LOG_TO("", false);
+}
+
+//-------------------------------------------------------------------------------------
+void DebugHelper::finalise(bool destroy)
+{
+	if(!destroy)
+	{
+		while(DebugHelper::getSingleton().hasBufferedLogPackets() > 0)
+		{
+			size_t size = DebugHelper::getSingleton().hasBufferedLogPackets();
+			Network::Channel* pLoggerChannel = DebugHelper::getSingleton().pLoggerChannel();
+			if (pLoggerChannel)
+			{
+				DebugHelper::getSingleton().sync();
+				pLoggerChannel->send();
+			}
+
+			if(DebugHelper::getSingleton().hasBufferedLogPackets() == size)
+				break;
+
+			sleep(10);
+		}
+
+		sleep(1000);
+	}
+
+	DebugHelper::getSingleton().clearBufferedLog(true);
+
+	// SAFE_RELEASE(g_pDebugHelperSyncHandler);
+
+#ifndef NO_USE_LOG4CXX
+#endif
+}
+
+//-------------------------------------------------------------------------------------
+Network::Channel* DebugHelper::pLoggerChannel()
+{
+	if(Network::Address::NONE == loggerAddr_)
+		return NULL;
+
+	return pNetworkInterface_->findChannel(loggerAddr_);
 }
 
 //-------------------------------------------------------------------------------------
 void DebugHelper::clearBufferedLog(bool destroy)
 {
-	int8 v = Mercury::g_trace_packet;
-	Mercury::g_trace_packet = 0;
+	int8 v = Network::g_trace_packet;
+	Network::g_trace_packet = 0;
 
 	if(destroy)
 	{
 		while(!bufferedLogPackets_.empty())
 		{
-			Mercury::Bundle* pBundle = bufferedLogPackets_.front();
+			Network::Bundle* pBundle = bufferedLogPackets_.front();
 			bufferedLogPackets_.pop();
 			delete pBundle;
+		}
+
+		while (!childThreadBufferedLogPackets_.empty())
+		{
+			MemoryStream* pMemoryStream = childThreadBufferedLogPackets_.front();
+			childThreadBufferedLogPackets_.pop();
+			delete pMemoryStream;
 		}
 	}
 	else
 	{
-		Mercury::Bundle::ObjPool().reclaimObject(bufferedLogPackets_);
+		Network::Bundle::ObjPool().reclaimObject(bufferedLogPackets_);
+		memoryStreamPool_.reclaimObject(childThreadBufferedLogPackets_);
 	}
 
-	Mercury::g_trace_packet = v;
+	Network::g_trace_packet = v;
 
 	hasBufferedLogPackets_ = 0;
 	noSyncLog_ = true;
+	canLogFile_ = true;
 
 	if(!destroy)
 		g_pDebugHelperSyncHandler->cancel();
@@ -289,65 +455,118 @@ void DebugHelper::sync()
 		return;
 	}
 
-	if(Mercury::Address::NONE == messagelogAddr_)
+	// 将子线程日志放入bufferedLogPackets_
+	while (childThreadBufferedLogPackets_.size() > 0)
 	{
-		if(hasBufferedLogPackets_ > g_kbeSrvConfig.tickMaxBufferedLogs())
+		// 从主对象池取出一个对象，将子线程中对象vector内存交换进去
+		MemoryStream* pMemoryStream = childThreadBufferedLogPackets_.front();
+		childThreadBufferedLogPackets_.pop();
+
+		Network::Bundle* pBundle = Network::Bundle::createPoolObject();
+		bufferedLogPackets_.push(pBundle);
+
+		pBundle->newMessage(LoggerInterface::writeLog);
+		pBundle->finiCurrPacket();
+		pBundle->newPacket();
+
+		// 将他们的内存交换进去
+		pBundle->pCurrPacket()->swap(*pMemoryStream);
+		pBundle->currMsgLength(pBundle->currMsgLength() + pBundle->pCurrPacket()->length());
+
+		// 将所有对象交还给对象池
+		memoryStreamPool_.reclaimObject(pMemoryStream);
+	}
+
+	if(Network::Address::NONE == loggerAddr_)
+	{
+		if(g_kbeSrvConfig.tickMaxBufferedLogs() > 0)
 		{
-			clearBufferedLog();
+			if(hasBufferedLogPackets_ > g_kbeSrvConfig.tickMaxBufferedLogs())
+			{
+				clearBufferedLog();
+			}
 		}
-		
-		canLogFile_ = true;
+		else
+		{
+			if(hasBufferedLogPackets_ > 256)
+			{
+				clearBufferedLog();
+			}
+		}
+
 		unlockthread();
 		return;
 	}
 	
-	Mercury::Channel* pMessagelogChannel = pNetworkInterface_->findChannel(messagelogAddr_);
-	if(pMessagelogChannel == NULL)
+	Network::Channel* pLoggerChannel = pNetworkInterface_->findChannel(loggerAddr_);
+	if(pLoggerChannel == NULL)
 	{
-		if(hasBufferedLogPackets_ > g_kbeSrvConfig.tickMaxBufferedLogs())
+		if(g_kbeSrvConfig.tickMaxBufferedLogs() > 0)
 		{
-			clearBufferedLog();
+			if(hasBufferedLogPackets_ > g_kbeSrvConfig.tickMaxBufferedLogs())
+			{
+				clearBufferedLog();
+			}
+		}
+		else
+		{
+			if(hasBufferedLogPackets_ > 256)
+			{
+				clearBufferedLog();
+			}
 		}
 		
-		canLogFile_ = true;
 		unlockthread();
 		return;
 	}
 
-	int8 v = Mercury::g_trace_packet;
-	Mercury::g_trace_packet = 0;
+	static bool alertmsg = false;
+	if(!alertmsg)
+	{
+		KBE_LOG4CXX_WARN(g_logger, fmt::format("Forwarding logs to logger[{}]...\n", 
+			pLoggerChannel->c_str()));
+
+		alertmsg = true;
+	}
+
+	int8 v = Network::g_trace_packet;
+	Network::g_trace_packet = 0;
 
 	uint32 i = 0;
-	size_t totalLen = 0;
+
+	Network::Channel::Bundles& bundles = pLoggerChannel->bundles();
 
 	while(!bufferedLogPackets_.empty())
 	{
-		if(i++ >= g_kbeSrvConfig.tickMaxSyncLogs() || totalLen > (PACKET_MAX_SIZE_TCP * 10))
+		if((g_kbeSrvConfig.tickMaxSyncLogs() > 0 && i++ >= g_kbeSrvConfig.tickMaxSyncLogs()))
 			break;
 		
-		Mercury::Bundle* pBundle = bufferedLogPackets_.front();
+		Network::Bundle* pBundle = bufferedLogPackets_.front();
 		bufferedLogPackets_.pop();
 
-		totalLen += pBundle->currMsgLength();
-		pMessagelogChannel->send(pBundle);
-		
+		pBundle->finiMessage(true);
+		bundles.push_back(pBundle);
 		--hasBufferedLogPackets_;
 	}
 
-	Mercury::g_trace_packet = v;
+	// 这里需要延时发送，否则在发送过程中产生错误，导致日志输出会出现死锁
+	if(bundles.size() > 0 && !pLoggerChannel->sending())
+		pLoggerChannel->delayedSend();
+
+	Network::g_trace_packet = v;
 	canLogFile_ = false;
 	unlockthread();
 }
 
 //-------------------------------------------------------------------------------------
-void DebugHelper::pDispatcher(Mercury:: EventDispatcher* dispatcher)
+void DebugHelper::pDispatcher(Network::EventDispatcher* dispatcher)
 { 
 	pDispatcher_ = dispatcher; 
 	g_pDebugHelperSyncHandler->startActiveTick();
 }
 
 //-------------------------------------------------------------------------------------
-void DebugHelper::pNetworkInterface(Mercury:: NetworkInterface* networkInterface)
+void DebugHelper::pNetworkInterface(Network::NetworkInterface* networkInterface)
 { 
 	pNetworkInterface_ = networkInterface; 
 }
@@ -355,7 +574,7 @@ void DebugHelper::pNetworkInterface(Mercury:: NetworkInterface* networkInterface
 //-------------------------------------------------------------------------------------
 void DebugHelper::onMessage(uint32 logType, const char * str, uint32 length)
 {
-#if !defined( _WIN32 ) && !defined( PLAYSTATION3 )
+#if !defined( _WIN32 )
 	if (g_shouldWriteToSyslog)
 	{
 		int lid = LOG_INFO;
@@ -379,66 +598,263 @@ void DebugHelper::onMessage(uint32 logType, const char * str, uint32 length)
 		if(lid == KBELOG_ERROR || lid == KBELOG_CRITICAL)
 			syslog( LOG_CRIT, "%s", str );
 	}
+
+	bool isMainThread = (mainThreadID_ == pthread_self());
+#else
+	bool isMainThread = (mainThreadID_ == GetCurrentThreadId());
 #endif
 
 	if(length <= 0 || noSyncLog_)
 		return;
 
 	if(g_componentType == MACHINE_TYPE || 
-		g_componentType == CONSOLE_TYPE || g_componentType == MESSAGELOG_TYPE)
+		g_componentType == CONSOLE_TYPE || 
+		g_componentType == LOGGER_TYPE || 
+		g_componentType == CLIENT_TYPE)
 		return;
 
-
-
-	if(hasBufferedLogPackets_ > g_kbeSrvConfig.tickMaxBufferedLogs())
+	if (!isMainThread)
 	{
-		int8 v = Mercury::g_trace_packet;
-		Mercury::g_trace_packet = 0;
+		MemoryStream* pMemoryStream = memoryStreamPool_.createObject();
+
+		(*pMemoryStream) << getUserUID();
+		(*pMemoryStream) << logType;
+		(*pMemoryStream) << g_componentType;
+		(*pMemoryStream) << g_componentID;
+		(*pMemoryStream) << g_componentGlobalOrder;
+		(*pMemoryStream) << g_componentGroupOrder;
+
+		struct timeb tp;
+		ftime(&tp);
+
+		int64 t = tp.time;
+		(*pMemoryStream) << t;
+		uint32 millitm = tp.millitm;
+		(*pMemoryStream) << millitm;
+		pMemoryStream->appendBlob(str, length);
+
+		childThreadBufferedLogPackets_.push(pMemoryStream);
+	}
+	else
+	{
+		if(g_kbeSrvConfig.tickMaxBufferedLogs() > 0 && hasBufferedLogPackets_ > g_kbeSrvConfig.tickMaxBufferedLogs())
+		{
+			int8 v = Network::g_trace_packet;
+			Network::g_trace_packet = 0;
 
 #ifdef NO_USE_LOG4CXX
 #else
-		LOG4CXX_WARN(g_logger, "DebugHelper::onMessage: bufferedLogPackets is full, discard log-packets!\n");
+			KBE_LOG4CXX_WARN(g_logger, fmt::format("DebugHelper::onMessage: bufferedLogPackets is full({} > kbengine[_defs].xml->logger->tick_max_buffered_logs->{})!\n", 
+				hasBufferedLogPackets_, g_kbeSrvConfig.tickMaxBufferedLogs()));
 #endif
 
-		Mercury::g_trace_packet = v;
+			Network::g_trace_packet = v;
 
-		clearBufferedLog();
+			clearBufferedLog();
+			
+#ifdef NO_USE_LOG4CXX
+#else
+			KBE_LOG4CXX_WARN(g_logger, fmt::format("DebugHelper::onMessage: discard logs!\n"));
+#endif
+			return;
+		}
+
+		int8 trace_packet = Network::g_trace_packet;
+		Network::g_trace_packet = 0;
+		Network::Bundle* pBundle = Network::Bundle::createPoolObject();
+
+		pBundle->newMessage(LoggerInterface::writeLog);
+
+		(*pBundle) << getUserUID();
+		(*pBundle) << logType;
+		(*pBundle) << g_componentType;
+		(*pBundle) << g_componentID;
+		(*pBundle) << g_componentGlobalOrder;
+		(*pBundle) << g_componentGroupOrder;
+
+		struct timeb tp;
+		ftime(&tp);
+
+		int64 t = tp.time;
+		(*pBundle) << t;
+		uint32 millitm = tp.millitm;
+		(*pBundle) << millitm;
+		pBundle->appendBlob(str, length);
+
+		bufferedLogPackets_.push(pBundle);
+		Network::g_trace_packet = trace_packet;
+		g_pDebugHelperSyncHandler->startActiveTick();
+	}
+
+	++hasBufferedLogPackets_;
+}
+
+//-------------------------------------------------------------------------------------
+void DebugHelper::registerLogger(Network::MessageID msgID, Network::Address* pAddr)
+{
+	loggerAddr_ = *pAddr;
+	ALERT_LOG_TO("logger_", true);
+}
+
+//-------------------------------------------------------------------------------------
+void DebugHelper::unregisterLogger(Network::MessageID msgID, Network::Address* pAddr)
+{
+	loggerAddr_ = Network::Address::NONE;
+	canLogFile_ = true;
+	ALERT_LOG_TO("", true);
+	printBufferedLogs();
+}
+
+//-------------------------------------------------------------------------------------
+void DebugHelper::printBufferedLogs()
+{
+	lockthread();
+
+	if(hasBufferedLogPackets_ == 0)
+	{
+		unlockthread();
 		return;
 	}
 
-	Mercury::Bundle* pBundle = Mercury::Bundle::ObjPool().createObject();
+#ifdef NO_USE_LOG4CXX
+#else
+	KBE_LOG4CXX_INFO(g_logger, std::string("The following logs sent to logger failed:\n"));
+#endif
 
-	int8 v = Mercury::g_trace_packet;
-	Mercury::g_trace_packet = 0;
-	pBundle->newMessage(MessagelogInterface::writeLog);
+	// 将子线程日志放入bufferedLogPackets_
+	while (childThreadBufferedLogPackets_.size() > 0)
+	{
+		// 从主对象池取出一个对象，将子线程中对象vector内存交换进去
+		MemoryStream* pMemoryStream = childThreadBufferedLogPackets_.front();
+		childThreadBufferedLogPackets_.pop();
 
-	(*pBundle) << logType;
-	(*pBundle) << g_componentType;
-	(*pBundle) << g_componentID;
-	(*pBundle) << g_componentGlobalOrder;
+		Network::Bundle* pBundle = Network::Bundle::createPoolObject();
+		bufferedLogPackets_.push(pBundle);
 
-	int64 t = time(NULL);
-	(*pBundle) << t;
-	(*pBundle) << g_kbetime;
-	(*pBundle) << str;
+		pBundle->newMessage(LoggerInterface::writeLog);
+		pBundle->finiCurrPacket();
+		pBundle->newPacket();
+
+		// 将他们的内存交换进去
+		pBundle->pCurrPacket()->swap(*pMemoryStream);
+		pBundle->currMsgLength(pBundle->currMsgLength() + pBundle->pCurrPacket()->length());
+
+		// 将所有对象交还给对象池
+		memoryStreamPool_.reclaimObject(pMemoryStream);
+	}
+
+	while(!bufferedLogPackets_.empty())
+	{		
+		Network::Bundle* pBundle = bufferedLogPackets_.front();
+		bufferedLogPackets_.pop();
+
+		pBundle->finiMessage(true);
+
+		Network::MessageID msgID;
+		Network::MessageLength msglen;
+		Network::MessageLength1 msglen1;
+
+		int32 uid;
+		uint32 logtype;
+		COMPONENT_TYPE componentType;
+		COMPONENT_ID componentID;
+		COMPONENT_ORDER componentGlobalOrder;
+		COMPONENT_ORDER componentGroupOrder;
+		int64 t;
+		GAME_TIME kbetime;
+
+		std::string str;
+
+		(*pBundle) >> msgID;
+		(*pBundle) >> msglen;
+
+		if (msglen == 65535)
+			(*pBundle) >> msglen1;
+
+		(*pBundle) >> uid;
+		(*pBundle) >> logtype;
+		(*pBundle) >> componentType;
+		(*pBundle) >> componentID;
+		(*pBundle) >> componentGlobalOrder;
+		(*pBundle) >> componentGroupOrder;
+		(*pBundle) >> t;
+		(*pBundle) >> kbetime;
+		(*pBundle).readBlob(str);
+
+		time_t tt = static_cast<time_t>(t);	
+	    tm* aTm = localtime(&tt);
+	    //       YYYY   year
+	    //       MM     month (2 digits 01-12)
+	    //       DD     day (2 digits 01-31)
+	    //       HH     hour (2 digits 00-23)
+	    //       MM     minutes (2 digits 00-59)
+	    //       SS     seconds (2 digits 00-59)
+
+		if(aTm == NULL)
+		{
+			Network::Bundle::ObjPool().reclaimObject(pBundle);
+			continue;
+		}
 	
-	++hasBufferedLogPackets_;
-	bufferedLogPackets_.push(pBundle);
+		char timebuf[MAX_BUF];
+	    kbe_snprintf(timebuf, MAX_BUF, " [%-4d-%02d-%02d %02d:%02d:%02d %03d] ", aTm->tm_year+1900, aTm->tm_mon+1, 
+			aTm->tm_mday, aTm->tm_hour, aTm->tm_min, aTm->tm_sec, kbetime);
 
-	Mercury::g_trace_packet = v;
-	g_pDebugHelperSyncHandler->startActiveTick();
-}
+		std::string logstr = fmt::format("==>{}", timebuf);
+		logstr += str;
+		
+#ifdef NO_USE_LOG4CXX
+#else
+		switch (logtype)
+		{
+		case KBELOG_PRINT:
+			KBE_LOG4CXX_INFO(g_logger, logstr);
+			break;
+		case KBELOG_ERROR:
+			KBE_LOG4CXX_ERROR(g_logger, logstr);
+			break;
+		case KBELOG_WARNING:
+			KBE_LOG4CXX_WARN(g_logger, logstr);
+			break;
+		case KBELOG_DEBUG:
+			KBE_LOG4CXX_DEBUG(g_logger, logstr);
+			break;
+		case KBELOG_INFO:
+			KBE_LOG4CXX_INFO(g_logger, logstr);
+			break;
+		case KBELOG_CRITICAL:
+			KBE_LOG4CXX_FATAL(g_logger, logstr);
+			break;
+		case KBELOG_SCRIPT_INFO:
+			setScriptMsgType(log4cxx::ScriptLevel::SCRIPT_INFO);
+			KBE_LOG4CXX_LOG(g_logger,  log4cxx::ScriptLevel::toLevel(scriptMsgType_), logstr);
+			break;
+		case KBELOG_SCRIPT_ERROR:
+			setScriptMsgType(log4cxx::ScriptLevel::SCRIPT_ERR);
+			KBE_LOG4CXX_LOG(g_logger,  log4cxx::ScriptLevel::toLevel(scriptMsgType_), logstr);
+			break;
+		case KBELOG_SCRIPT_DEBUG:
+			setScriptMsgType(log4cxx::ScriptLevel::SCRIPT_DBG);
+			KBE_LOG4CXX_LOG(g_logger,  log4cxx::ScriptLevel::toLevel(scriptMsgType_), logstr);
+			break;
+		case KBELOG_SCRIPT_WARNING:
+			setScriptMsgType(log4cxx::ScriptLevel::SCRIPT_WAR);
+			KBE_LOG4CXX_LOG(g_logger,  log4cxx::ScriptLevel::toLevel(scriptMsgType_), logstr);
+			break;
+		case KBELOG_SCRIPT_NORMAL:
+			setScriptMsgType(log4cxx::ScriptLevel::SCRIPT_INFO);
+			KBE_LOG4CXX_LOG(g_logger,  log4cxx::ScriptLevel::toLevel(scriptMsgType_), logstr);
+			break;
+		default:
+			break;
+		};
+#endif
 
-//-------------------------------------------------------------------------------------
-void DebugHelper::registerMessagelog(Mercury::MessageID msgID, Mercury::Address* pAddr)
-{
-	messagelogAddr_ = *pAddr;
-}
+		--hasBufferedLogPackets_;
+		Network::Bundle::ObjPool().reclaimObject(pBundle);
+	}
 
-//-------------------------------------------------------------------------------------
-void DebugHelper::unregisterMessagelog(Mercury::MessageID msgID, Mercury::Address* pAddr)
-{
-	messagelogAddr_ = Mercury::Address::NONE;
+	unlockthread();
 }
 
 //-------------------------------------------------------------------------------------
@@ -449,10 +865,10 @@ void DebugHelper::print_msg(const std::string& s)
 #ifdef NO_USE_LOG4CXX
 #else
 	if(canLogFile_)
-		LOG4CXX_INFO(g_logger, s);
+		KBE_LOG4CXX_INFO(g_logger, s);
 #endif
 
-	onMessage(KBELOG_PRINT, s.c_str(), s.size());
+	onMessage(KBELOG_PRINT, s.c_str(), (uint32)s.size());
 }
 
 //-------------------------------------------------------------------------------------
@@ -462,14 +878,14 @@ void DebugHelper::error_msg(const std::string& s)
 
 #ifdef NO_USE_LOG4CXX
 #else
-	LOG4CXX_ERROR(g_logger, s);
+	KBE_LOG4CXX_ERROR(g_logger, s);
 #endif
 
-	onMessage(KBELOG_ERROR, s.c_str(), s.size());
+	onMessage(KBELOG_ERROR, s.c_str(), (uint32)s.size());
 
-#if KBE_PLATFORM == PLATFORM_WIN32
-	printf("[ERROR]: %s", s.c_str());
-#endif
+	set_errorcolor();
+	printf("%s%02d: [ERROR]: %s", COMPONENT_NAME_EX_2(g_componentType), g_componentGroupOrder, s.c_str());
+	set_normalcolor();
 }
 
 //-------------------------------------------------------------------------------------
@@ -480,44 +896,88 @@ void DebugHelper::info_msg(const std::string& s)
 #ifdef NO_USE_LOG4CXX
 #else
 	if(canLogFile_)
-		LOG4CXX_INFO(g_logger, s);
+		KBE_LOG4CXX_INFO(g_logger, s);
 #endif
 
-	onMessage(KBELOG_INFO, s.c_str(), s.size());
+	onMessage(KBELOG_INFO, s.c_str(), (uint32)s.size());
 }
 
 //-------------------------------------------------------------------------------------
-void DebugHelper::script_msg(const std::string& s)
+int KBELOG_TYPE_MAPPING(int type)
+{
+#ifdef NO_USE_LOG4CXX
+	return KBELOG_SCRIPT_INFO;
+#else
+	switch(type)
+	{
+	case log4cxx::ScriptLevel::SCRIPT_INFO:
+		return KBELOG_SCRIPT_INFO;
+	case log4cxx::ScriptLevel::SCRIPT_ERR:
+		return KBELOG_SCRIPT_ERROR;
+	case log4cxx::ScriptLevel::SCRIPT_DBG:
+		return KBELOG_SCRIPT_DEBUG;
+	case log4cxx::ScriptLevel::SCRIPT_WAR:
+		return KBELOG_SCRIPT_WARNING;
+	default:
+		break;
+	}
+
+	return KBELOG_SCRIPT_NORMAL;
+#endif
+}
+
+//-------------------------------------------------------------------------------------
+void DebugHelper::script_info_msg(const std::string& s)
 {
 	KBEngine::thread::ThreadGuard tg(&this->logMutex); 
-
-	if(s.size() > 33 /* strlen("Traceback (most recent call last)" */)
-	{
-		if(s[0] == 'T' && s[10] == '(')
-		{
-			if(s.substr(0, 33) == "Traceback (most recent call last)")
-				setScriptMsgType(log4cxx::ScriptLevel::SCRIPT_ERR);
-		}
-	}
 
 #ifdef NO_USE_LOG4CXX
 #else
 	if(canLogFile_)
-		LOG4CXX_LOG(g_logger,  log4cxx::ScriptLevel::toLevel(scriptMsgType_), s);
+		KBE_LOG4CXX_LOG(g_logger,  log4cxx::ScriptLevel::toLevel(scriptMsgType_), s);
 #endif
 
-	onMessage(KBELOG_SCRIPT, s.c_str(), s.size());
+	onMessage(KBELOG_TYPE_MAPPING(scriptMsgType_), s.c_str(), (uint32)s.size());
 
-#if KBE_PLATFORM == PLATFORM_WIN32
+	// 如果是用户手动设置的也输出为错误信息
 	if(log4cxx::ScriptLevel::SCRIPT_ERR == scriptMsgType_)
-		printf("[S_ERROR]: %s", s.c_str());
+	{
+		set_errorcolor();
+		printf("%s%02d: [S_ERROR]: %s", COMPONENT_NAME_EX_2(g_componentType), g_componentGroupOrder, s.c_str());
+		set_normalcolor();
+	}
+}
+
+//-------------------------------------------------------------------------------------
+void DebugHelper::script_error_msg(const std::string& s)
+{
+	KBEngine::thread::ThreadGuard tg(&this->logMutex); 
+
+	setScriptMsgType(log4cxx::ScriptLevel::SCRIPT_ERR);
+
+#ifdef NO_USE_LOG4CXX
+#else
+	if(canLogFile_)
+		KBE_LOG4CXX_LOG(g_logger,  log4cxx::ScriptLevel::toLevel(scriptMsgType_), s);
 #endif
+
+	onMessage(KBELOG_SCRIPT_ERROR, s.c_str(), (uint32)s.size());
+
+	set_errorcolor();
+	printf("%s%02d: [S_ERROR]: %s", COMPONENT_NAME_EX_2(g_componentType), g_componentGroupOrder, s.c_str());
+	set_normalcolor();
 }
 
 //-------------------------------------------------------------------------------------
 void DebugHelper::setScriptMsgType(int msgtype)
 {
 	scriptMsgType_ = msgtype;
+}
+
+//-------------------------------------------------------------------------------------
+void DebugHelper::resetScriptMsgType()
+{
+	setScriptMsgType(log4cxx::ScriptLevel::SCRIPT_INFO);
 }
 
 //-------------------------------------------------------------------------------------
@@ -528,10 +988,10 @@ void DebugHelper::debug_msg(const std::string& s)
 #ifdef NO_USE_LOG4CXX
 #else
 	if(canLogFile_)
-		LOG4CXX_DEBUG(g_logger, s);
+		KBE_LOG4CXX_DEBUG(g_logger, s);
 #endif
 
-	onMessage(KBELOG_DEBUG, s.c_str(), s.size());
+	onMessage(KBELOG_DEBUG, s.c_str(), (uint32)s.size());
 }
 
 //-------------------------------------------------------------------------------------
@@ -542,10 +1002,16 @@ void DebugHelper::warning_msg(const std::string& s)
 #ifdef NO_USE_LOG4CXX
 #else
 	if(canLogFile_)
-		LOG4CXX_WARN(g_logger, s);
+		KBE_LOG4CXX_WARN(g_logger, s);
 #endif
 
-	onMessage(KBELOG_WARNING, s.c_str(), s.size());
+	onMessage(KBELOG_WARNING, s.c_str(), (uint32)s.size());
+
+#if KBE_PLATFORM == PLATFORM_WIN32
+	set_warningcolor();
+	//printf("%s%02d: [WARNING]: %s", COMPONENT_NAME_EX_2(g_componentType), g_componentGroupOrder, s.c_str());
+	set_normalcolor();
+#endif
 }
 
 //-------------------------------------------------------------------------------------
@@ -558,15 +1024,42 @@ void DebugHelper::critical_msg(const std::string& s)
 
 #ifdef NO_USE_LOG4CXX
 #else
-	LOG4CXX_FATAL(g_logger, buf);
+	KBE_LOG4CXX_FATAL(g_logger, std::string(buf));
 #endif
 
 #if KBE_PLATFORM == PLATFORM_WIN32
-	printf("[FATAL]: %s", s.c_str());
+	set_errorcolor();
+	printf("%s%02d: [FATAL]: %s", COMPONENT_NAME_EX_2(g_componentType), g_componentGroupOrder, s.c_str());
+	set_normalcolor();
 #endif
 
-	onMessage(KBELOG_CRITICAL, buf, strlen(buf));
+	onMessage(KBELOG_CRITICAL, buf, (uint32)strlen(buf));
 	backtrace_msg();
+}
+
+//-------------------------------------------------------------------------------------
+void DebugHelper::set_errorcolor()
+{
+#if KBE_PLATFORM == PLATFORM_WIN32
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_RED);
+#endif
+}
+
+//-------------------------------------------------------------------------------------
+void DebugHelper::set_normalcolor()
+{
+#if KBE_PLATFORM == PLATFORM_WIN32
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_RED|FOREGROUND_GREEN|
+		FOREGROUND_BLUE);
+#endif
+}
+
+//-------------------------------------------------------------------------------------
+void DebugHelper::set_warningcolor()
+{
+#if KBE_PLATFORM == PLATFORM_WIN32
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_RED|FOREGROUND_GREEN);
+#endif
 }
 
 //-------------------------------------------------------------------------------------
@@ -624,7 +1117,7 @@ void DebugHelper::backtrace_msg()
 
 #ifdef NO_USE_LOG4CXX
 #else
-			LOG4CXX_INFO(g_logger, ss);
+			KBE_LOG4CXX_INFO(g_logger, ss);
 #endif
 
 			onMessage(KBELOG_PRINT, ss.c_str(), ss.size());
@@ -642,6 +1135,15 @@ void DebugHelper::backtrace_msg()
 #endif
 
 //-------------------------------------------------------------------------------------
+void DebugHelper::closeLogger()
+{
+	// close logger for fork + execv
+#ifndef NO_USE_LOG4CXX
+	g_logger = (const int)NULL;
+	log4cxx::LogManager::shutdown();
+#endif
+}
+
 
 }
 

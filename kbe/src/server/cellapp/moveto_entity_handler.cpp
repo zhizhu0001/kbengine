@@ -2,7 +2,7 @@
 This source file is part of KBEngine
 For the latest info, see http://www.kbengine.org/
 
-Copyright (c) 2008-2012 KBEngine.
+Copyright (c) 2008-2017 KBEngine.
 
 KBEngine is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
@@ -18,19 +18,20 @@ You should have received a copy of the GNU Lesser General Public License
 along with KBEngine.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "cellapp.hpp"
-#include "entity.hpp"
-#include "moveto_entity_handler.hpp"	
+#include "cellapp.h"
+#include "entity.h"
+#include "moveto_entity_handler.h"	
 
 namespace KBEngine{	
 
 
 //-------------------------------------------------------------------------------------
-MoveToEntityHandler::MoveToEntityHandler(Controller* pController, ENTITY_ID pTargetID, float velocity, float range, bool faceMovement, 
+MoveToEntityHandler::MoveToEntityHandler(KBEShared_ptr<Controller>& pController, ENTITY_ID pTargetID, float velocity, float range, bool faceMovement, 
 		bool moveVertically, PyObject* userarg):
 MoveToPointHandler(pController, pController->pEntity()->layer(), pController->pEntity()->position(), velocity, range, faceMovement, moveVertically, userarg),
 pTargetID_(pTargetID)
 {
+	updatableName = "MoveToEntityHandler";
 }
 
 //-------------------------------------------------------------------------------------
@@ -38,6 +39,7 @@ MoveToEntityHandler::MoveToEntityHandler():
 MoveToPointHandler(),
 pTargetID_(0)
 {
+	updatableName = "MoveToEntityHandler";
 }
 
 //-------------------------------------------------------------------------------------
@@ -69,6 +71,12 @@ const Position3D& MoveToEntityHandler::destPos()
 //-------------------------------------------------------------------------------------
 bool MoveToEntityHandler::update()
 {
+	if (isDestroyed_)
+	{
+		delete this;
+		return false;
+	}
+
 	Entity* pEntity = Cellapp::getSingleton().findEntity(pTargetID_);
 	if(pEntity == NULL)
 	{
@@ -78,7 +86,7 @@ bool MoveToEntityHandler::update()
 		if(pController_)
 			pController_->destroy();
 		
-		pController_ = NULL;
+		pController_.reset();
 	}
 
 	return MoveToPointHandler::update();

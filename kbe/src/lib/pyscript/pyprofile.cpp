@@ -2,7 +2,7 @@
 This source file is part of KBEngine
 For the latest info, see http://www.kbengine.org/
 
-Copyright (c) 2008-2012 KBEngine.
+Copyright (c) 2008-2017 KBEngine.
 
 KBEngine is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
@@ -18,10 +18,10 @@ You should have received a copy of the GNU Lesser General Public License
 along with KBEngine.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "script.hpp"
-#include "pyprofile.hpp"
-#include "pyobject_pointer.hpp"
-#include "cstdkbe/memorystream.hpp"
+#include "script.h"
+#include "pyprofile.h"
+#include "pyobject_pointer.h"
+#include "common/memorystream.h"
 
 namespace KBEngine{ 
 namespace script{
@@ -171,21 +171,26 @@ void PyProfile::addToStream(std::string profile, MemoryStream* s)
 		return;
 	}
 
-	if(!pScript_->pyStdouterrHook()->install()){												
+	ScriptStdOutErrHook* pScriptStdOutErrHook = new ScriptStdOutErrHook();
+	if(!pScriptStdOutErrHook->install())
+	{												
 		ERROR_MSG("PyProfile::addToStream: pyStdouterrHook_->install() is failed!\n");
+		delete pScriptStdOutErrHook;
 		SCRIPT_ERROR_CHECK();
 		return;
 	}
 
 	std::string retBufferPtr;
-	pScript_->pyStdouterrHook()->setHookBuffer(&retBufferPtr);
-	pScript_->pyStdouterrHook()->setPrint(false);
+	pScriptStdOutErrHook->setHookBuffer(&retBufferPtr);
+	pScriptStdOutErrHook->setPrint(false);
+
 	PyObject* pyRet = PyObject_CallMethod(iter->second.get(), const_cast<char*>("print_stats"),
 		const_cast<char*>("s"), const_cast<char*>("time"));
 	
-	pScript_->pyStdouterrHook()->setPrint(true);
-	pScript_->pyStdouterrHook()->uninstall();
+	pScriptStdOutErrHook->setPrint(true);
+	pScriptStdOutErrHook->uninstall();
 
+	delete pScriptStdOutErrHook;
 	SCRIPT_ERROR_CHECK();
 
 	if(!pyRet)

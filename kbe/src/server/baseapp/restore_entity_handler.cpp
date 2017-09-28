@@ -2,7 +2,7 @@
 This source file is part of KBEngine
 For the latest info, see http://www.kbengine.org/
 
-Copyright (c) 2008-2012 KBEngine.
+Copyright (c) 2008-2017 KBEngine.
 
 KBEngine is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
@@ -17,21 +17,20 @@ GNU Lesser General Public License for more details.
 You should have received a copy of the GNU Lesser General Public License
 along with KBEngine.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include "base.hpp"
-#include "baseapp.hpp"
-#include "restore_entity_handler.hpp"
-#include "server/componentbridge.hpp"
-#include "server/components.hpp"
-#include "entitydef/entity_mailbox.hpp"
-#include "entitydef/entitydef.hpp"
+#include "base.h"
+#include "baseapp.h"
+#include "restore_entity_handler.h"
+#include "server/components.h"
+#include "entitydef/entity_mailbox.h"
+#include "entitydef/entitydef.h"
 
-#include "../../server/baseapp/baseapp_interface.hpp"
-#include "../../server/cellapp/cellapp_interface.hpp"
+#include "../../server/baseapp/baseapp_interface.h"
+#include "../../server/cellapp/cellapp_interface.h"
 
 namespace KBEngine{	
 
 //-------------------------------------------------------------------------------------
-RestoreEntityHandler::RestoreEntityHandler(COMPONENT_ID cellappID, Mercury::NetworkInterface & networkInterface):
+RestoreEntityHandler::RestoreEntityHandler(COMPONENT_ID cellappID, Network::NetworkInterface & networkInterface):
 Task(),
 networkInterface_(networkInterface),
 entities_(),
@@ -41,19 +40,20 @@ otherRestoredSpaces_(),
 broadcastOtherBaseapps_(false),
 tickReport_(0),
 spaceIDs_(),
-cellappID_(cellappID)
+cellappID_(cellappID),
+canRestore_(false)
 {
-	// networkInterface_.mainDispatcher().addFrequentTask(this);
+	// networkInterface_.dispatcher().addTask(this);
 }
 
 //-------------------------------------------------------------------------------------
 RestoreEntityHandler::~RestoreEntityHandler()
 {
 	if(inProcess_)
-		networkInterface_.mainDispatcher().cancelFrequentTask(this);
+		networkInterface_.dispatcher().cancelTask(this);
 
 	std::vector<RestoreData>::iterator restoreSpacesIter = otherRestoredSpaces_.begin();
-	for(; restoreSpacesIter != otherRestoredSpaces_.end(); restoreSpacesIter++)
+	for(; restoreSpacesIter != otherRestoredSpaces_.end(); ++restoreSpacesIter)
 	{
 		if((*restoreSpacesIter).cell)
 		{
@@ -72,7 +72,7 @@ void RestoreEntityHandler::pushEntity(ENTITY_ID id)
 	data.id = id;
 	data.creatingCell = false;
 	data.processed = false;
-	
+
 	Base* pBase = Baseapp::getSingleton().findEntity(data.id);
 	if(pBase && !pBase->isDestroyed())
 	{
@@ -97,7 +97,7 @@ void RestoreEntityHandler::pushEntity(ENTITY_ID id)
 	if(!inProcess_)
 	{
 		inProcess_ = true;
-		networkInterface_.mainDispatcher().addFrequentTask(this);
+		networkInterface_.dispatcher().addTask(this);
 	}
 
 	tickReport_ = timestamp();
@@ -107,19 +107,38 @@ void RestoreEntityHandler::pushEntity(ENTITY_ID id)
 bool RestoreEntityHandler::process()
 {
 	Components::COMPONENTS& cts = Components::getSingleton().getComponents(CELLAPP_TYPE);
-	Mercury::Channel* pChannel = NULL;
+	Network::Channel* pChannel = NULL;
 
 	if(cts.size() > 0)
 	{
 		Components::COMPONENTS::iterator ctiter = cts.begin();
 		if((*ctiter).pChannel == NULL)
+		{
+			canRestore(false);
 			return true;
+		}
 
 		pChannel = (*ctiter).pChannel;
 	}
 
 	if(pChannel == NULL)
+	{
+		canRestore(false);
 		return true;
+	}
+
+	if(!canRestore())
+	{
+		if(timestamp() - tickReport_ > uint64( 3 * stampsPerSecond() ))
+		{
+			Network::Bundle* pBundle = Network::Bundle::createPoolObject();
+			(*pBundle).newMessage(CellappInterface::requestRestore);
+			(*pBundle) << cellappID();
+			pChannel->send(pBundle);
+		}
+
+		return true;
+	}
 
 	int count = 0;
 
@@ -141,7 +160,7 @@ bool RestoreEntityHandler::process()
 
 		// ±ØÐëµÈ´ýspace»Ö¸´
 		std::vector<RestoreData>::iterator restoreSpacesIter = restoreSpaces_.begin();
-		for(; restoreSpacesIter != restoreSpaces_.end(); restoreSpacesIter++)
+		for(; restoreSpacesIter != restoreSpaces_.end(); ++restoreSpacesIter)
 		{
 			Base* pBase = Baseapp::getSingleton().findEntity((*restoreSpacesIter).id);
 			
@@ -191,7 +210,7 @@ bool RestoreEntityHandler::process()
 			INFO_MSG(fmt::format("RestoreEntityHandler::process({}): begin broadcast-spaceGetCell to otherBaseapps...\n", cellappID_));
 
 			std::vector<RestoreData>::iterator restoreSpacesIter = restoreSpaces_.begin();
-			for(; restoreSpacesIter != restoreSpaces_.end(); restoreSpacesIter++)
+			for(; restoreSpacesIter != restoreSpaces_.end(); ++restoreSpacesIter)
 			{
 				Base* pBase = Baseapp::getSingleton().findEntity((*restoreSpacesIter).id);
 				bool destroyed = (pBase == NULL || pBase->isDestroyed());
@@ -203,16 +222,16 @@ bool RestoreEntityHandler::process()
 
 				if(!destroyed)
 				{
-					utype = pBase->scriptModule()->getUType();
+					utype = pBase->pScriptModule()->getUType();
 					cellappID = pBase->cellMailbox()->componentID();
 				}
 
 				spaceIDs_.erase(std::remove(spaceIDs_.begin(), spaceIDs_.end(), spaceID), spaceIDs_.end());
 
-				Mercury::Channel* pChannel = NULL;
-				Components::COMPONENTS& cts = Componentbridge::getComponents().getComponents(BASEAPP_TYPE);
+				Network::Channel* pChannel = NULL;
+				Components::COMPONENTS& cts = Components::getSingleton().getComponents(BASEAPP_TYPE);
 				Components::COMPONENTS::iterator comsiter = cts.begin();
-				for(; comsiter != cts.end(); comsiter++)
+				for(; comsiter != cts.end(); ++comsiter)
 				{
 					pChannel = (*comsiter).pChannel;
 					
@@ -221,11 +240,10 @@ bool RestoreEntityHandler::process()
 						INFO_MSG(fmt::format("RestoreEntityHandler::process({4}): broadcast baseapp[{0}, {1}], spaceID[{2}], utype[{3}]...\n", 
 							(*comsiter).cid, pChannel->c_str(), spaceID, utype, cellappID_));
 
-						Mercury::Bundle* pBundle = Mercury::Bundle::ObjPool().createObject();
+						Network::Bundle* pBundle = Network::Bundle::createPoolObject();
 						(*pBundle).newMessage(BaseappInterface::onRestoreSpaceCellFromOtherBaseapp);
 						(*pBundle) << baseappID << cellappID << spaceID << spaceEntityID << utype << destroyed;
-						pBundle->send(Baseapp::getSingleton().networkInterface(), pChannel);
-						Mercury::Bundle::ObjPool().reclaimObject(pBundle);
+						pChannel->send(pBundle);
 					}
 				}
 			}
@@ -276,7 +294,7 @@ bool RestoreEntityHandler::process()
 					
 					EntityMailboxAbstract* cellMailbox = NULL;
 					std::vector<RestoreData>::iterator restoreSpacesIter = restoreSpaces_.begin();
-					for(; restoreSpacesIter != restoreSpaces_.end(); restoreSpacesIter++)
+					for(; restoreSpacesIter != restoreSpaces_.end(); ++restoreSpacesIter)
 					{
 						Base* pSpace = Baseapp::getSingleton().findEntity((*restoreSpacesIter).id);
 						if(pSpace && pBase->spaceID() == pSpace->spaceID())
@@ -289,7 +307,7 @@ bool RestoreEntityHandler::process()
 					if(cellMailbox == NULL)
 					{
 						restoreSpacesIter = otherRestoredSpaces_.begin();
-						for(; restoreSpacesIter != otherRestoredSpaces_.end(); restoreSpacesIter++)
+						for(; restoreSpacesIter != otherRestoredSpaces_.end(); ++restoreSpacesIter)
 						{
 							if(pBase->spaceID() == (*restoreSpacesIter).spaceID && (*restoreSpacesIter).cell)
 							{
@@ -330,7 +348,7 @@ bool RestoreEntityHandler::process()
 	if(entities_.size() == 0)
 	{
 		std::vector<RestoreData>::iterator restoreSpacesIter = otherRestoredSpaces_.begin();
-		for(; restoreSpacesIter != otherRestoredSpaces_.end(); restoreSpacesIter++)
+		for(; restoreSpacesIter != otherRestoredSpaces_.end(); ++restoreSpacesIter)
 		{
 			if((*restoreSpacesIter).cell)
 			{
@@ -382,6 +400,7 @@ void RestoreEntityHandler::onRestoreSpaceCellFromOtherBaseapp(COMPONENT_ID basea
 
 	otherRestoredSpaces_.push_back(data);
 }
+
 
 //-------------------------------------------------------------------------------------
 

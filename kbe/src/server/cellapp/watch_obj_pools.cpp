@@ -2,7 +2,7 @@
 This source file is part of KBEngine
 For the latest info, see http://www.kbengine.org/
 
-Copyright (c) 2008-2012 KBEngine.
+Copyright (c) 2008-2017 KBEngine.
 
 KBEngine is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
@@ -18,9 +18,9 @@ You should have received a copy of the GNU Lesser General Public License
 along with KBEngine.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "helper/watcher.hpp"
-#include "watch_obj_pools.hpp"
-#include "witness.hpp"
+#include "helper/watcher.h"
+#include "watch_obj_pools.h"
+#include "witness.h"
 
 namespace KBEngine { 
 
@@ -34,9 +34,9 @@ int32 watchWitnessPool_max()
 	return (int)Witness::ObjPool().max();
 }
 
-int32 watchWitnessPool_totalAlloc()
+int32 watchWitnessPool_totalAllocs()
 {
-	return (int)Witness::ObjPool().totalAlloc();
+	return (int)Witness::ObjPool().totalAllocs();
 }
 
 bool watchWitnessPool_isDestroyed()
@@ -49,7 +49,7 @@ uint32 watchWitnessPool_bytes()
 	size_t bytes = 0;
 
 	ObjectPool<Witness>::OBJECTS::const_iterator iter = Witness::ObjPool().objects().begin();
-	for(; iter != Witness::ObjPool().objects().end(); iter++)
+	for(; iter != Witness::ObjPool().objects().end(); ++iter)
 	{
 		bytes += static_cast<PoolObject*>((*iter))->getPoolObjectBytes();
 	}
@@ -64,7 +64,7 @@ bool WatchObjectPool::initWatchPools()
 	WATCH_OBJECT("objectPools/Witness/max", &watchWitnessPool_max);
 	WATCH_OBJECT("objectPools/Witness/isDestroyed", &watchWitnessPool_isDestroyed);
 	WATCH_OBJECT("objectPools/Witness/memory", &watchWitnessPool_bytes);
-	WATCH_OBJECT("objectPools/Witness/totalAllocs", &watchWitnessPool_totalAlloc);
+	WATCH_OBJECT("objectPools/Witness/totalAllocs", &watchWitnessPool_totalAllocs);
 	return true;
 }
 

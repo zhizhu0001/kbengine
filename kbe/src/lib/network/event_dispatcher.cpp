@@ -2,7 +2,7 @@
 This source file is part of KBEngine
 For the latest info, see http://www.kbengine.org/
 
-Copyright (c) 2008-2012 KBEngine.
+Copyright (c) 2008-2017 KBEngine.
 
 KBEngine is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
@@ -19,16 +19,17 @@ along with KBEngine.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 
-#include "event_dispatcher.hpp"
-#include "network/event_poller.hpp"
-#include "network/error_reporter.hpp"
+#include "event_dispatcher.h"
+#include "network/event_poller.h"
+#include "network/error_reporter.h"
+#include "helper/profile.h"
 
 #ifndef CODE_INLINE
-#include "event_dispatcher.ipp"
+#include "event_dispatcher.inl"
 #endif
 
 namespace KBEngine { 
-namespace Mercury
+namespace Network
 {
 
 EventDispatcher::EventDispatcher() :
@@ -39,10 +40,9 @@ EventDispatcher::EventDispatcher() :
 	oldSpareTime_(0),
 	totSpareTime_(0),
 	lastStatisticsGathered_(0),
-	pFrequentTasks_(new Tasks),
+	pTasks_(new Tasks),
 	pErrorReporter_(NULL),
-	pTimers_(new Timers64),
-	pCouplingToParent_(NULL)
+	pTimers_(new Timers64)
 	
 {
 	pPoller_ = EventPoller::create();
@@ -53,7 +53,7 @@ EventDispatcher::EventDispatcher() :
 EventDispatcher::~EventDispatcher()
 {
 	SAFE_RELEASE(pErrorReporter_);
-	SAFE_RELEASE(pFrequentTasks_);
+	SAFE_RELEASE(pTasks_);
 	SAFE_RELEASE(pPoller_);
 	
 	if (!pTimers_->empty())
@@ -74,54 +74,7 @@ EventPoller* EventDispatcher::createPoller()
 }
 
 //-------------------------------------------------------------------------------------
-void EventDispatcher::attach(EventDispatcher & childDispatcher)
-{
-	childDispatcher.attachTo(*this);
-	childDispatchers_.push_back(&childDispatcher);
-}
-
-//-------------------------------------------------------------------------------------
-void EventDispatcher::attachTo(EventDispatcher & parentDispatcher)
-{
-	KBE_ASSERT(pCouplingToParent_ == NULL);
-	pCouplingToParent_ = new DispatcherCoupling(parentDispatcher, *this);
-
-	int fd = pPoller_->getFileDescriptor();
-
-	if (fd != -1)
-	{
-		parentDispatcher.registerFileDescriptor(fd, pPoller_);
-		parentDispatcher.registerWriteFileDescriptor(fd, pPoller_);
-	}
-}
-
-//-------------------------------------------------------------------------------------
-void EventDispatcher::detach(EventDispatcher & childDispatcher)
-{
-	childDispatcher.detachFrom(*this);
-
-	ChildDispatchers & d = childDispatchers_;
-	d.erase(std::remove(d.begin(), d.end(), &childDispatcher), d.end());
-}
-
-//-------------------------------------------------------------------------------------
-void EventDispatcher::detachFrom(EventDispatcher & parentDispatcher)
-{
-	int fd = pPoller_->getFileDescriptor();
-
-	if (fd != -1)
-	{
-		parentDispatcher.deregisterFileDescriptor(fd);
-		parentDispatcher.deregisterWriteFileDescriptor(fd);
-	}
-
-	KBE_ASSERT(pCouplingToParent_ != NULL);
-	delete pCouplingToParent_;
-	pCouplingToParent_ = NULL;
-}
-
-//-------------------------------------------------------------------------------------
-bool EventDispatcher::registerFileDescriptor(int fd,
+bool EventDispatcher::registerReadFileDescriptor(int fd,
 	InputNotificationHandler * handler)
 {
 	return pPoller_->registerForRead(fd, handler);
@@ -129,13 +82,13 @@ bool EventDispatcher::registerFileDescriptor(int fd,
 
 //-------------------------------------------------------------------------------------
 bool EventDispatcher::registerWriteFileDescriptor(int fd,
-	InputNotificationHandler * handler)
+	OutputNotificationHandler * handler)
 {
 	return pPoller_->registerForWrite(fd, handler);
 }
 
 //-------------------------------------------------------------------------------------
-bool EventDispatcher::deregisterFileDescriptor(int fd)
+bool EventDispatcher::deregisterReadFileDescriptor(int fd)
 {
 	return pPoller_->deregisterForRead(fd);
 }
@@ -180,41 +133,16 @@ void EventDispatcher::clearSpareTime()
 	pPoller_->clearSpareTime();
 }
 
-uint64 EventDispatcher::timerDeliveryTime(TimerHandle handle) const
+//-------------------------------------------------------------------------------------
+void EventDispatcher::addTask(Task * pTask)
 {
-	return pTimers_->timerDeliveryTime(handle);
+	pTasks_->add(pTask);
 }
 
 //-------------------------------------------------------------------------------------
-uint64 EventDispatcher::timerIntervalTime(TimerHandle handle) const
+bool EventDispatcher::cancelTask(Task * pTask)
 {
-	return pTimers_->timerIntervalTime(handle);
-}
-
-//-------------------------------------------------------------------------------------
-uint64 & EventDispatcher::timerIntervalTime(TimerHandle handle)
-{
-	return pTimers_->timerIntervalTime(handle);
-}
-
-//-------------------------------------------------------------------------------------
-double EventDispatcher::proportionalSpareTime() const
-{
-	double ret = (double)(int64)(totSpareTime_ - oldSpareTime_);
-	return ret / stampsPerSecondD();
-	return 0;
-}
-
-//-------------------------------------------------------------------------------------
-void EventDispatcher::addFrequentTask(Task * pTask)
-{
-	pFrequentTasks_->add(pTask);
-}
-
-//-------------------------------------------------------------------------------------
-bool EventDispatcher::cancelFrequentTask(Task * pTask)
-{
-	return pFrequentTasks_->cancel(pTask);
+	return pTasks_->cancel(pTask);
 }
 
 //-------------------------------------------------------------------------------------
@@ -228,26 +156,19 @@ double EventDispatcher::calculateWait() const
 			pTimers_->nextExp(timestamp()) / stampsPerSecondD());
 	}
 
-	ChildDispatchers::const_iterator iter = childDispatchers_.begin();
-
-	while (iter != childDispatchers_.end())
-	{
-		maxWait = std::min(maxWait, (*iter)->calculateWait());
-		++iter;
-	}
-
 	return maxWait;
 }
 
 //-------------------------------------------------------------------------------------
-void EventDispatcher::processFrequentTasks()
+void EventDispatcher::processTasks()
 {
-	pFrequentTasks_->process();
+	pTasks_->process();
 }
 
 //-------------------------------------------------------------------------------------
 void EventDispatcher::processTimers()
 {
+	AUTO_SCOPED_PROFILE("callSystemTimers")
 	numTimerCalls_ += pTimers_->process(timestamp());
 }
 
@@ -273,12 +194,6 @@ int EventDispatcher::processNetwork(bool shouldIdle)
 //-------------------------------------------------------------------------------------
 void EventDispatcher::processUntilBreak()
 {
-	this->processContinuously();
-}
-
-//-------------------------------------------------------------------------------------
-void EventDispatcher::processContinuously()
-{
 	if(breakProcessing_ != EVENT_DISPATCHER_STATUS_BREAK_PROCESSING)
 		breakProcessing_ = EVENT_DISPATCHER_STATUS_RUNNING;
 
@@ -294,7 +209,7 @@ int EventDispatcher::processOnce(bool shouldIdle)
 	if(breakProcessing_ != EVENT_DISPATCHER_STATUS_BREAK_PROCESSING)
 		breakProcessing_ = EVENT_DISPATCHER_STATUS_RUNNING;
 
-	this->processFrequentTasks();
+	this->processTasks();
 
 	if(breakProcessing_ != EVENT_DISPATCHER_STATUS_BREAK_PROCESSING){
 		this->processTimers();

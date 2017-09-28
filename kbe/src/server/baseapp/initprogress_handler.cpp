@@ -2,7 +2,7 @@
 This source file is part of KBEngine
 For the latest info, see http://www.kbengine.org/
 
-Copyright (c) 2008-2012 KBEngine.
+Copyright (c) 2008-2017 KBEngine.
 
 KBEngine is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
@@ -18,62 +18,137 @@ You should have received a copy of the GNU Lesser General Public License
 along with KBEngine.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "baseapp.hpp"
-#include "initprogress_handler.hpp"
-#include "entitydef/scriptdef_module.hpp"
-#include "entitydef/entity_macro.hpp"
-#include "network/fixed_messages.hpp"
-#include "math/math.hpp"
-#include "network/bundle.hpp"
-#include "network/channel.hpp"
+#include "baseapp.h"
+#include "initprogress_handler.h"
+#include "entity_autoloader.h"
+#include "network/bundle.h"
+#include "network/channel.h"
 
-#include "../../server/baseappmgr/baseappmgr_interface.hpp"
+#include "../../server/baseappmgr/baseappmgr_interface.h"
 
 namespace KBEngine{	
 
 //-------------------------------------------------------------------------------------
-InitProgressHandler::InitProgressHandler(Mercury::NetworkInterface & networkInterface):
+InitProgressHandler::InitProgressHandler(Network::NetworkInterface & networkInterface):
 Task(),
-networkInterface_(networkInterface)
+networkInterface_(networkInterface),
+delayTicks_(0),
+pEntityAutoLoader_(NULL),
+autoLoadState_(-1),
+error_(false),
+baseappReady_(false)
 {
-	networkInterface.mainDispatcher().addFrequentTask(this);
+	networkInterface.dispatcher().addTask(this);
 }
 
 //-------------------------------------------------------------------------------------
 InitProgressHandler::~InitProgressHandler()
 {
-	// networkInterface_.mainDispatcher().cancelFrequentTask(this);
+	// networkInterface_.dispatcher().cancelTask(this);
 	DEBUG_MSG("InitProgressHandler::~InitProgressHandler()\n");
+
+	if(pEntityAutoLoader_)
+	{
+		pEntityAutoLoader_->pInitProgressHandler(NULL);
+		pEntityAutoLoader_ = NULL;
+	}
+}
+
+//-------------------------------------------------------------------------------------
+void InitProgressHandler::setAutoLoadState(int8 state)
+{ 
+	autoLoadState_ = state; 
+
+	if(state == 1)
+		pEntityAutoLoader_ = NULL;
+}
+
+//-------------------------------------------------------------------------------------
+void InitProgressHandler::onEntityAutoLoadCBFromDBMgr(Network::Channel* pChannel, MemoryStream& s)
+{
+	pEntityAutoLoader_->onEntityAutoLoadCBFromDBMgr(pChannel, s);
+}
+
+//-------------------------------------------------------------------------------------
+void InitProgressHandler::setError()
+{
+	error_ = true;
 }
 
 //-------------------------------------------------------------------------------------
 bool InitProgressHandler::process()
 {
-	Components::COMPONENTS& cts = Components::getSingleton().getComponents(BASEAPPMGR_TYPE);
-	Mercury::Channel* pChannel = NULL;
-
-	if(cts.size() > 0)
+	if(error_)
 	{
-		Components::COMPONENTS::iterator ctiter = cts.begin();
-		if((*ctiter).pChannel == NULL)
-			return true;
-
-		pChannel = (*ctiter).pChannel;
+		Baseapp::getSingleton().dispatcher().breakProcessing();
+		return false;
 	}
+
+	Network::Channel* pChannel = Components::getSingleton().getBaseappmgrChannel();
 
 	if(pChannel == NULL)
 		return true;
 
+	if(Baseapp::getSingleton().idClient().size() == 0)
+		return true;
+
+	if(delayTicks_++ < 1)
+		return true;
+
+	// 只有第一个baseapp上会创建EntityAutoLoader来自动加载数据库实体
+	if(g_componentGroupOrder == 1)
+	{
+		if(autoLoadState_ == -1)
+		{
+			autoLoadState_ = 0;
+			pEntityAutoLoader_ = new EntityAutoLoader(networkInterface_, this);
+			return true;
+		}
+		else if(autoLoadState_ == 0)
+		{
+			// 必须等待EntityAutoLoader执行完毕
+			// EntityAutoLoader执行完毕会设置autoLoadState_ = 1
+			if(!pEntityAutoLoader_->process())
+				setAutoLoadState(1);
+			
+			return true;
+		}
+	}
+
+	pEntityAutoLoader_ = NULL;
+
+	if(!baseappReady_)
+	{
+		baseappReady_ = true;
+
+		SCOPED_PROFILE(SCRIPTCALL_PROFILE);
+
+		// 所有脚本都加载完毕
+		PyObject* pyResult = PyObject_CallMethod(Baseapp::getSingleton().getEntryScript().get(), 
+											const_cast<char*>("onBaseAppReady"), 
+											const_cast<char*>("O"), 
+											PyBool_FromLong((g_componentGroupOrder == 1) ? 1 : 0));
+
+		if(pyResult != NULL)
+			Py_DECREF(pyResult);
+		else
+			SCRIPT_ERROR_CHECK();
+
+		return true;
+	}
+
 	float v = 0.0f;
 	bool completed = false;
 
-	if(PyObject_HasAttrString(Baseapp::getSingleton().getEntryScript().get(), "readyForLogin") > 0)
+	if(PyObject_HasAttrString(Baseapp::getSingleton().getEntryScript().get(), "onReadyForLogin") > 0)
 	{
-		// 所有脚本都加载完毕
+		SCOPED_PROFILE(SCRIPTCALL_PROFILE);
+
+		// 回调获得是否能够登录
 		PyObject* pyResult = PyObject_CallMethod(Baseapp::getSingleton().getEntryScript().get(), 
-											const_cast<char*>("readyForLogin"), 
-											const_cast<char*>("i"), 
-											g_componentGroupOrder);
+											const_cast<char*>("onReadyForLogin"), 
+											const_cast<char*>("O"), 
+											PyBool_FromLong((g_componentGroupOrder == 1) ? 1 : 0));
 
 		if(pyResult != NULL)
 		{
@@ -114,11 +189,11 @@ bool InitProgressHandler::process()
 		completed = true;
 	}
 
-	Mercury::Bundle::SmartPoolObjectPtr bundleptr = Mercury::Bundle::createSmartPoolObj();
+	Network::Bundle* pBundle = Network::Bundle::createPoolObject();
 
-	(*bundleptr)->newMessage(BaseappmgrInterface::onBaseappInitProgress);
-	(*(*bundleptr)) << g_componentID << v;
-	(*bundleptr)->send(networkInterface_, pChannel);
+	(*pBundle).newMessage(BaseappmgrInterface::onBaseappInitProgress);
+	(*pBundle) << g_componentID << v;
+	pChannel->send(pBundle);
 
 	if(completed)
 	{

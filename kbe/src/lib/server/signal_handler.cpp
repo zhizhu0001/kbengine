@@ -2,7 +2,7 @@
 This source file is part of KBEngine
 For the latest info, see http://www.kbengine.org/
 
-Copyright (c) 2008-2012 KBEngine.
+Copyright (c) 2008-2017 KBEngine.
 
 KBEngine is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
@@ -19,9 +19,9 @@ along with KBEngine.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 
-#include "signal_handler.hpp"
-#include "helper/debug_helper.hpp"
-#include "server/serverapp.hpp"
+#include "signal_handler.h"
+#include "helper/debug_helper.h"
+#include "server/serverapp.h"
 
 namespace KBEngine{
 KBE_SINGLETON_INIT(SignalHandlers);
@@ -67,9 +67,19 @@ const char * SIGNAL_NAMES[] =
 
 SignalHandlers g_signalHandlers;
 
+std::string SIGNAL2NAMES(int signum)
+{
+	if (signum >= SIGMIN && signum <= SIGMAX)
+	{
+		return SIGNAL_NAMES[signum];
+	}
+
+	return fmt::format("unknown({})", signum);
+}
+
 void signalHandler(int signum)
 {
-	DEBUG_MSG(fmt::format("SignalHandlers: receive sigNum {}.\n", SIGNAL_NAMES[signum]));
+	DEBUG_MSG(fmt::format("SignalHandlers: receive sigNum {}.\n", SIGNAL2NAMES(signum)));
 	g_signalHandlers.onSignalled(signum);
 };
 
@@ -90,15 +100,17 @@ SignalHandlers::~SignalHandlers()
 void SignalHandlers::attachApp(ServerApp* app)
 { 
 	papp_ = app; 
-	app->mainDispatcher().addFrequentTask(this);
+	app->dispatcher().addTask(this);
 }
 
 //-------------------------------------------------------------------------------------	
 SignalHandler* SignalHandlers::addSignal(int sigNum, 
 	SignalHandler* pSignalHandler, int flags)
 {
-	SignalHandlerMap::iterator iter = singnalHandlerMap_.find(sigNum);
-	KBE_ASSERT(iter == singnalHandlerMap_.end());
+	// ÔÊÐí±»ÖØÖÃ
+	// SignalHandlerMap::iterator iter = singnalHandlerMap_.find(sigNum);
+	// KBE_ASSERT(iter == singnalHandlerMap_.end());
+
 	singnalHandlerMap_[sigNum] = pSignalHandler;
 
 #if KBE_PLATFORM != PLATFORM_WIN32
@@ -149,18 +161,19 @@ bool SignalHandlers::process()
 	if(signalledVec_.size() > 0)
 	{
 		std::vector<int>::iterator iter = signalledVec_.begin();
-		for(; iter != signalledVec_.end(); iter++)
+		for(; iter != signalledVec_.end(); ++iter)
 		{
 			int sigNum = (*iter);
 			SignalHandlerMap::iterator iter1 = singnalHandlerMap_.find(sigNum);
 			if(iter1 == singnalHandlerMap_.end())
 			{
 				DEBUG_MSG(fmt::format("SignalHandlers::process: sigNum {} unhandled, singnalHandlerMap({}).\n", 
-					SIGNAL_NAMES[sigNum], singnalHandlerMap_.size()));
+					SIGNAL2NAMES(sigNum), singnalHandlerMap_.size()));
+
 				continue;
 			}
 			
-			DEBUG_MSG(fmt::format("SignalHandlers::process: sigNum {} handle.\n", SIGNAL_NAMES[sigNum]));
+			DEBUG_MSG(fmt::format("SignalHandlers::process: sigNum {} handle.\n", SIGNAL2NAMES(sigNum)));
 				iter1->second->onSignalled(sigNum);
 		}
 

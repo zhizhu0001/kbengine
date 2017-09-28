@@ -2,7 +2,7 @@
 This source file is part of KBEngine
 For the latest info, see http://www.kbengine.org/
 
-Copyright (c) 2008-2012 KBEngine.
+Copyright (c) 2008-2017 KBEngine.
 
 KBEngine is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
@@ -18,50 +18,49 @@ You should have received a copy of the GNU Lesser General Public License
 along with KBEngine.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "dbmgr.hpp"
-#include "sync_app_datas_handler.hpp"
-#include "entitydef/scriptdef_module.hpp"
-#include "entitydef/entity_macro.hpp"
-#include "network/fixed_messages.hpp"
-#include "math/math.hpp"
-#include "network/bundle.hpp"
-#include "network/channel.hpp"
-#include "server/componentbridge.hpp"
-#include "server/components.hpp"
+#include "dbmgr.h"
+#include "sync_app_datas_handler.h"
+#include "entitydef/scriptdef_module.h"
+#include "entitydef/entity_macro.h"
+#include "network/fixed_messages.h"
+#include "math/math.h"
+#include "network/bundle.h"
+#include "network/channel.h"
+#include "server/components.h"
 
-#include "baseapp/baseapp_interface.hpp"
-#include "cellapp/cellapp_interface.hpp"
-#include "baseappmgr/baseappmgr_interface.hpp"
-#include "cellappmgr/cellappmgr_interface.hpp"
-#include "loginapp/loginapp_interface.hpp"
+#include "baseapp/baseapp_interface.h"
+#include "cellapp/cellapp_interface.h"
+#include "baseappmgr/baseappmgr_interface.h"
+#include "cellappmgr/cellappmgr_interface.h"
+#include "loginapp/loginapp_interface.h"
 
 namespace KBEngine{	
 
 //-------------------------------------------------------------------------------------
-SyncAppDatasHandler::SyncAppDatasHandler(Mercury::NetworkInterface & networkInterface):
+SyncAppDatasHandler::SyncAppDatasHandler(Network::NetworkInterface & networkInterface):
 Task(),
 networkInterface_(networkInterface),
 lastRegAppTime_(0),
 apps_()
 {
-	networkInterface.mainDispatcher().addFrequentTask(this);
+	networkInterface.dispatcher().addTask(this);
 }
 
 //-------------------------------------------------------------------------------------
 SyncAppDatasHandler::~SyncAppDatasHandler()
 {
-	// networkInterface_.mainDispatcher().cancelFrequentTask(this);
+	// networkInterface_.dispatcher().cancelTask(this);
 	DEBUG_MSG("SyncAppDatasHandler::~SyncAppDatasHandler()\n");
 
 	Dbmgr::getSingleton().pSyncAppDatasHandler(NULL);
 }
 
 //-------------------------------------------------------------------------------------
-void SyncAppDatasHandler::pushApp(COMPONENT_ID cid, int32 startGroupOrder, int32 startGlobalOrder)
+void SyncAppDatasHandler::pushApp(COMPONENT_ID cid, COMPONENT_ORDER startGroupOrder, COMPONENT_ORDER startGlobalOrder)
 {
 	lastRegAppTime_ = timestamp();
 	std::vector<ComponentInitInfo>::iterator iter = apps_.begin();
-	for(; iter != apps_.end(); iter++)
+	for(; iter != apps_.end(); ++iter)
 	{
 		if((*iter).cid == cid)
 		{
@@ -86,17 +85,18 @@ bool SyncAppDatasHandler::process()
 	bool hasApp = false;
 
 	std::vector<ComponentInitInfo>::iterator iter = apps_.begin();
-	for(; iter != apps_.end(); iter++)
+	for(; iter != apps_.end(); ++iter)
 	{
 		ComponentInitInfo cInitInfo = (*iter);
-		Components::ComponentInfos* cinfos = Componentbridge::getComponents().findComponent(cInitInfo.cid);
+		Components::ComponentInfos* cinfos = Components::getSingleton().findComponent(cInitInfo.cid);
 
 		if(cinfos == NULL)
 			continue;
 
 		COMPONENT_TYPE tcomponentType = cinfos->componentType;
 		if(tcomponentType == BASEAPP_TYPE || 
-			tcomponentType == CELLAPP_TYPE)
+			tcomponentType == CELLAPP_TYPE ||
+			tcomponentType == LOGINAPP_TYPE)
 		{
 			hasApp = true;
 			break;
@@ -117,10 +117,10 @@ bool SyncAppDatasHandler::process()
 	// 如果是连接到dbmgr则需要等待接收app初始信息
 	// 例如：初始会分配entityID段以及这个app启动的顺序信息（是否第一个baseapp启动）
 	iter = apps_.begin();
-	for(; iter != apps_.end(); iter++)
+	for(; iter != apps_.end(); ++iter)
 	{
 		ComponentInitInfo cInitInfo = (*iter);
-		Components::ComponentInfos* cinfos = Componentbridge::getComponents().findComponent(cInitInfo.cid);
+		Components::ComponentInfos* cinfos = Components::getSingleton().findComponent(cInitInfo.cid);
 
 		if(cinfos == NULL)
 			continue;
@@ -131,7 +131,7 @@ bool SyncAppDatasHandler::process()
 			tcomponentType == CELLAPP_TYPE || 
 			tcomponentType == LOGINAPP_TYPE)
 		{
-			Mercury::Bundle* pBundle = Mercury::Bundle::ObjPool().createObject();
+			Network::Bundle* pBundle = Network::Bundle::createPoolObject();
 			
 			switch(tcomponentType)
 			{
@@ -142,7 +142,8 @@ bool SyncAppDatasHandler::process()
 					std::pair<ENTITY_ID, ENTITY_ID> idRange = Dbmgr::getSingleton().idServer().allocRange();
 					(*pBundle).newMessage(BaseappInterface::onDbmgrInitCompleted);
 					BaseappInterface::onDbmgrInitCompletedArgs6::staticAddToBundle((*pBundle), g_kbetime, idRange.first, 
-						idRange.second, cInitInfo.startGlobalOrder, cInitInfo.startGroupOrder, digest);
+						idRange.second, cInitInfo.startGlobalOrder, cInitInfo.startGroupOrder, 
+						digest);
 				}
 				break;
 			case CELLAPP_TYPE:
@@ -152,21 +153,22 @@ bool SyncAppDatasHandler::process()
 					std::pair<ENTITY_ID, ENTITY_ID> idRange = Dbmgr::getSingleton().idServer().allocRange();
 					(*pBundle).newMessage(CellappInterface::onDbmgrInitCompleted);
 					CellappInterface::onDbmgrInitCompletedArgs6::staticAddToBundle((*pBundle), g_kbetime, idRange.first, 
-						idRange.second, cInitInfo.startGlobalOrder, cInitInfo.startGroupOrder, digest);
+						idRange.second, cInitInfo.startGlobalOrder, cInitInfo.startGroupOrder, 
+						digest);
 				}
 				break;
 			case LOGINAPP_TYPE:
 				(*pBundle).newMessage(LoginappInterface::onDbmgrInitCompleted);
 				LoginappInterface::onDbmgrInitCompletedArgs3::staticAddToBundle((*pBundle), 
-					cInitInfo.startGlobalOrder, cInitInfo.startGroupOrder, digest);
+						cInitInfo.startGlobalOrder, cInitInfo.startGroupOrder, 
+						digest);
 
 				break;
 			default:
 				break;
 			}
 
-			(*pBundle).send(networkInterface_, cinfos->pChannel);
-			Mercury::Bundle::ObjPool().reclaimObject(pBundle);
+			cinfos->pChannel->send(pBundle);
 		}
 	}
 

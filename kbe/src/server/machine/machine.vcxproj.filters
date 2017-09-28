@@ -13,6 +13,9 @@
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
       <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
     </Filter>
+    <Filter Include="Inline Files">
+      <UniqueIdentifier>{e6b2899c-cdc8-4def-adf0-f9cf4d8ec242}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="machine.cpp">
@@ -24,15 +27,18 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\lib\dependencies\openssl\include\openssl\applink.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="machine.hpp">
+    <ClInclude Include="machine.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="machine_interface.hpp">
+    <ClInclude Include="machine_interface.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="machine_interface_macros.hpp">
+    <ClInclude Include="machine_interface_macros.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

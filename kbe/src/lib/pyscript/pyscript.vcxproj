@@ -1,13 +1,21 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
     <ProjectConfiguration Include="Release|Win32">
       <Configuration>Release</Configuration>
       <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
@@ -21,10 +29,23 @@
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <CharacterSet>Unicode</CharacterSet>
     <WholeProgramOptimization>true</WholeProgramOptimization>
+    <PlatformToolset>v120</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <PlatformToolset>v120</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v120</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <CharacterSet>Unicode</CharacterSet>
+    <PlatformToolset>v120</PlatformToolset>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
@@ -32,7 +53,13 @@
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
@@ -43,29 +70,63 @@
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">../../libs\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">..\..\_objs\$(ProjectName)\$(Configuration)\</IntDir>
     <CodeAnalysisRuleSet Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">AllRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRuleSet Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">AllRules.ruleset</CodeAnalysisRuleSet>
     <CodeAnalysisRules Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" />
+    <CodeAnalysisRules Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" />
     <CodeAnalysisRuleAssemblies Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" />
+    <CodeAnalysisRuleAssemblies Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" />
     <CodeAnalysisRuleSet Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">AllRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRuleSet Condition="'$(Configuration)|$(Platform)'=='Release|x64'">AllRules.ruleset</CodeAnalysisRuleSet>
     <CodeAnalysisRules Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" />
+    <CodeAnalysisRules Condition="'$(Configuration)|$(Platform)'=='Release|x64'" />
     <CodeAnalysisRuleAssemblies Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" />
+    <CodeAnalysisRuleAssemblies Condition="'$(Configuration)|$(Platform)'=='Release|x64'" />
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(ProjectName)_d</TargetName>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(ProjectName)_d</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <OutDir>../../libs\</OutDir>
+    <IntDir>..\..\_objs\$(ProjectName)_d\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>../../libs\</OutDir>
+    <IntDir>..\..\_objs\$(ProjectName)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>../python/PC;../python/Include;../;../../common;../../lib/dependencies/g3dlite;../../lib/dependencies/log4cxx/include;../../lib/dependencies;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../python/PC;../python/Include;../;../../common;../../lib/dependencies/g3dlite;../../lib/dependencies/log4cxx/src/main/include;../../lib/dependencies;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>ENABLE_WATCHERS;WIN32;_DEBUG;_LIB;Py_NO_ENABLE_SHARED;CODE_INLINE;KBE_USE_ASSERTS;LOG4CXX_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>true</MinimalRebuild>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
-      <PrecompiledHeader>
-      </PrecompiledHeader>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
       <ObjectFileName>$(IntDir)</ObjectFileName>
       <ProgramDataBaseFileName>$(OutDir)$(TargetName).pdb</ProgramDataBaseFileName>
       <XMLDocumentationFileName>$(IntDir)</XMLDocumentationFileName>
       <WarningLevel>Level3</WarningLevel>
-      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
+    <Lib>
+      <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>../python/PC;../python/Include;../;../../common;../../lib/dependencies/g3dlite;../../lib/dependencies/log4cxx/src/main/include;../../lib/dependencies;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>ENABLE_WATCHERS;WIN32;_DEBUG;_LIB;Py_NO_ENABLE_SHARED;CODE_INLINE;KBE_USE_ASSERTS;LOG4CXX_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ProgramDataBaseFileName>$(OutDir)$(TargetName).pdb</ProgramDataBaseFileName>
+      <XMLDocumentationFileName>$(IntDir)</XMLDocumentationFileName>
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Lib>
       <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
@@ -76,12 +137,32 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <AdditionalIncludeDirectories>../python/PC;../python/Include;../;../../common;../../lib/dependencies/g3dlite;../../lib/dependencies/log4cxx/include;../../lib/dependencies;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../python/PC;../python/Include;../;../../common;../../lib/dependencies/g3dlite;../../lib/dependencies/log4cxx/src/main/include;../../lib/dependencies;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>ENABLE_WATCHERS;WIN32;NDEBUG;_LIB;Py_NO_ENABLE_SHARED;CODE_INLINE;KBE_USE_ASSERTS;LOG4CXX_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
-      <PrecompiledHeader>
-      </PrecompiledHeader>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <ProgramDataBaseFileName>$(OutDir)$(TargetName).pdb</ProgramDataBaseFileName>
+      <XMLDocumentationFileName>$(IntDir)</XMLDocumentationFileName>
+      <WarningLevel>Level3</WarningLevel>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
+    <Lib>
+      <OutputFile>$(OutDir)$(TargetName)$(TargetExt)</OutputFile>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Lib>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <Optimization>MaxSpeed</Optimization>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <AdditionalIncludeDirectories>../python/PC;../python/Include;../;../../common;../../lib/dependencies/g3dlite;../../lib/dependencies/log4cxx/src/main/include;../../lib/dependencies;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>ENABLE_WATCHERS;WIN32;NDEBUG;_LIB;Py_NO_ENABLE_SHARED;CODE_INLINE;KBE_USE_ASSERTS;LOG4CXX_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
       <ObjectFileName>$(IntDir)</ObjectFileName>
       <ProgramDataBaseFileName>$(OutDir)$(TargetName).pdb</ProgramDataBaseFileName>
@@ -100,6 +181,7 @@
     <ClCompile Include="map.cpp" />
     <ClCompile Include="math.cpp" />
     <ClCompile Include="pickler.cpp" />
+    <ClCompile Include="py_gc.cpp" />
     <ClCompile Include="py_memorystream.cpp" />
     <ClCompile Include="pyprofile.cpp" />
     <ClCompile Include="pyprofile_handler.cpp" />
@@ -107,6 +189,8 @@
     <ClCompile Include="pywatcher.cpp" />
     <ClCompile Include="script.cpp" />
     <ClCompile Include="scriptobject.cpp" />
+    <ClCompile Include="scriptstderr.cpp" />
+    <ClCompile Include="scriptstdout.cpp" />
     <ClCompile Include="scriptstdouterr.cpp" />
     <ClCompile Include="scriptstdouterrhook.cpp" />
     <ClCompile Include="sequence.cpp" />
@@ -115,39 +199,43 @@
     <ClCompile Include="vector4.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="copy.hpp" />
-    <ClInclude Include="install_py_dlls.hpp" />
-    <ClInclude Include="map.hpp" />
-    <ClInclude Include="math.hpp" />
-    <ClInclude Include="pickler.hpp" />
-    <ClInclude Include="py_memorystream.hpp" />
-    <ClInclude Include="pyattr_macro.hpp" />
-    <ClInclude Include="pyobject_call_template.hpp" />
-    <ClInclude Include="pyobject_pointer.hpp" />
-    <ClInclude Include="pyprofile.hpp" />
-    <ClInclude Include="pyprofile_handler.hpp" />
-    <ClInclude Include="pystruct.hpp" />
-    <ClInclude Include="pythread_lock.hpp" />
-    <ClInclude Include="pywatcher.hpp" />
-    <ClInclude Include="script.hpp" />
-    <ClInclude Include="scriptobject.hpp" />
-    <ClInclude Include="scriptstdouterr.hpp" />
-    <ClInclude Include="scriptstdouterrhook.hpp" />
-    <ClInclude Include="sequence.hpp" />
-    <ClInclude Include="vector2.hpp" />
-    <ClInclude Include="vector3.hpp" />
-    <ClInclude Include="vector4.hpp" />
+    <ClInclude Include="copy.h" />
+    <ClInclude Include="install_py_dlls.h" />
+    <ClInclude Include="map.h" />
+    <ClInclude Include="math.h" />
+    <ClInclude Include="pickler.h" />
+    <ClInclude Include="py_gc.h" />
+    <ClInclude Include="py_macros.h" />
+    <ClInclude Include="py_memorystream.h" />
+    <ClInclude Include="pyobject_pointer.h" />
+    <ClInclude Include="pyprofile.h" />
+    <ClInclude Include="pyprofile_handler.h" />
+    <ClInclude Include="pystruct.h" />
+    <ClInclude Include="pythread_lock.h" />
+    <ClInclude Include="pywatcher.h" />
+    <ClInclude Include="script.h" />
+    <ClInclude Include="scriptobject.h" />
+    <ClInclude Include="scriptstderr.h" />
+    <ClInclude Include="scriptstdout.h" />
+    <ClInclude Include="scriptstdouterr.h" />
+    <ClInclude Include="scriptstdouterrhook.h" />
+    <ClInclude Include="sequence.h" />
+    <ClInclude Include="vector2.h" />
+    <ClInclude Include="vector3.h" />
+    <ClInclude Include="vector4.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="map.ipp" />
-    <None Include="py_memorystream.ipp" />
-    <None Include="pywatcher.ipp" />
+    <None Include="map.inl" />
+    <None Include="py_memorystream.inl" />
+    <None Include="pywatcher.inl" />
     <None Include="ReadMe.txt" />
-    <None Include="script.ipp" />
-    <None Include="scriptobject.ipp" />
-    <None Include="scriptstdouterr.ipp" />
-    <None Include="scriptstdouterrhook.ipp" />
-    <None Include="sequence.ipp" />
+    <None Include="script.inl" />
+    <None Include="scriptobject.inl" />
+    <None Include="scriptstderr.inl" />
+    <None Include="scriptstdout.inl" />
+    <None Include="scriptstdouterr.inl" />
+    <None Include="scriptstdouterrhook.inl" />
+    <None Include="sequence.inl" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\dependencies\openssl\vcbuild\libeay32\libeay32.vcxproj">

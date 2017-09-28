@@ -2,7 +2,7 @@
 This source file is part of KBEngine
 For the latest info, see http://www.kbengine.org/
 
-Copyright (c) 2008-2012 KBEngine.
+Copyright (c) 2008-2017 KBEngine.
 
 KBEngine is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
@@ -19,8 +19,8 @@ along with KBEngine.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 
-#include "shutdowner.hpp"
-#include "network/event_dispatcher.hpp"
+#include "shutdowner.h"
+#include "network/event_dispatcher.h"
 
 namespace KBEngine { 
 
@@ -47,7 +47,7 @@ void Shutdowner::cancel()
 }
 
 //-------------------------------------------------------------------------------------
-void Shutdowner::shutdown(float period, float tickPeriod, Mercury::EventDispatcher& dispatcher)
+void Shutdowner::shutdown(float period, float tickPeriod, Network::EventDispatcher& dispatcher)
 {
 	pTimerHandle_.cancel();
 	INFO_MSG(fmt::format("Shutdowner::onShutdownBegin: shutting down(period={}, tickPeriod={})\n", 
@@ -98,10 +98,16 @@ void Shutdowner::handleTimeout(TimerHandle handle, void * arg)
 			pShutdownHandler_->setShuttingdown(ShutdownHandler::SHUTDOWN_STATE_END);
 			if(!pShutdownHandler_->canShutdown())
 			{
-				INFO_MSG(fmt::format("Shutdowner::onShutdownEnd: waiting for {} to complete!\n",
-					pShutdownHandler_->lastShutdownFailReason()));
+				//INFO_MSG(fmt::format("Shutdowner::onShutdownEnd: waiting for {} to complete!\n",
+				//	pShutdownHandler_->lastShutdownFailReason()));
 				
 				pShutdownHandler_->onShutdown(false);
+				
+				cancel();
+				
+				pTimerHandle_ = pDispatcher_->addTimer(int(100000),
+												this, (void *)TIMEOUT_SHUTDOWN_END_TICK);
+			
 				break;
 			}
 			

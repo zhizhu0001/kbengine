@@ -2,7 +2,7 @@
 This source file is part of KBEngine
 For the latest info, see http://www.kbengine.org/
 
-Copyright (c) 2008-2012 KBEngine.
+Copyright (c) 2008-2017 KBEngine.
 
 KBEngine is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
@@ -18,9 +18,9 @@ You should have received a copy of the GNU Lesser General Public License
 along with KBEngine.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "resmgr.hpp"
-#include "resourceobject.hpp"
-#include "cstdkbe/timer.hpp"
+#include "resmgr.h"
+#include "resourceobject.h"
+#include "common/timer.h"
 
 namespace KBEngine{	
 
@@ -50,7 +50,7 @@ void ResourceObject::update()
 }
 
 //-------------------------------------------------------------------------------------
-bool ResourceObject::valid()const
+bool ResourceObject::valid() const
 {
 	return invalid_ || timestamp() < timeout_;
 }

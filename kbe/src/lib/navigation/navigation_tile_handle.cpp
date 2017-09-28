@@ -2,7 +2,7 @@
 This source file is part of KBEngine
 For the latest info, see http://www.kbengine.org/
 
-Copyright (c) 2008-2012 KBEngine.
+Copyright (c) 2008-2017 KBEngine.
 
 KBEngine is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
@@ -18,11 +18,11 @@ You should have received a copy of the GNU Lesser General Public License
 along with KBEngine.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "navigation_tile_handle.hpp"	
-#include "navigation/navigation.hpp"
-#include "resmgr/resmgr.hpp"
-#include "thread/threadguard.hpp"
-#include "math/math.hpp"
+#include "navigation_tile_handle.h"	
+#include "navigation/navigation.h"
+#include "resmgr/resmgr.h"
+#include "thread/threadguard.h"
+#include "math/math.h"
 
 namespace KBEngine{	
 NavTileHandle* NavTileHandle::pCurrNavTileHandle = NULL;
@@ -33,6 +33,14 @@ AStarSearch<NavTileHandle::MapSearchNode> NavTileHandle::astarsearch;
 
 #define DEBUG_LISTS 0
 #define DEBUG_LIST_LENGTHS_ONLY 0
+
+// Returns a random number [0..1)
+static float frand()
+{
+//	return ((float)(rand() & 0xffff)/(float)0xffff);
+	return (float)rand()/(float)RAND_MAX;
+}
+
 
 //-------------------------------------------------------------------------------------
 NavTileHandle::NavTileHandle(bool dir):
@@ -55,7 +63,7 @@ direction8_(navTileHandle.direction8_)
 NavTileHandle::~NavTileHandle()
 {
 	DEBUG_MSG(fmt::format("NavTileHandle::~NavTileHandle({1:p}, pTilemap={2:p}): ({0}) is destroyed!\n", 
-		name, (void*)this, (void*)pTilemap));
+		resPath, (void*)this, (void*)pTilemap));
 	
 	SAFE_RELEASE(pTilemap);
 }
@@ -270,26 +278,88 @@ int NavTileHandle::raycast(int layer, const Position3D& start, const Position3D&
 }
 
 //-------------------------------------------------------------------------------------
-NavigationHandle* NavTileHandle::create(std::string name)
+int NavTileHandle::findRandomPointAroundCircle(int layer, const Position3D& centerPos,
+	std::vector<Position3D>& points, uint32 max_points, float maxRadius)
 {
-	if(name == "")
+	setMapLayer(layer);
+	pCurrNavTileHandle = this;
+
+	if(pCurrNavTileHandle->pTilemap->GetNumLayers() < layer + 1)
+	{
+		ERROR_MSG(fmt::format("NavTileHandle::findRandomPointAroundCircle: not found layer({})\n", layer));
+		return NAV_ERROR;
+	}
+	
+	Position3D currpos;
+	
+	for (uint32 i = 0; i < max_points; i++)
+	{
+		float rnd = frand();
+		float a = maxRadius * rnd;						// 半径在maxRadius米内
+		float b = 360.0f * rnd;							// 随机一个角度
+		currpos.x = centerPos.x + (a * cos(b)); 		// 半径 * 正余玄
+		currpos.z = centerPos.z + (a * sin(b));
+		points.push_back(currpos);
+	}
+
+	return (int)points.size();
+}
+
+//-------------------------------------------------------------------------------------
+NavigationHandle* NavTileHandle::create(std::string resPath, const std::map< int, std::string >& params)
+{
+	if(resPath == "")
 		return NULL;
+	
+	std::string path;
+	
+	if(params.size() == 0)
+	{
+		path = resPath;
+		path = Resmgr::getSingleton().matchPath(path);
+		wchar_t* wpath = strutil::char2wchar(path.c_str());
+		std::wstring wspath = wpath;
+		free(wpath);
+			
+		std::vector<std::wstring> results;
+		Resmgr::getSingleton().listPathRes(wspath, L"tmx", results);
 
-	std::string path = Resmgr::getSingleton().matchRes("spaces/" + name + "/" + name + ".tmx");
+		if(results.size() == 0)
+		{
+			ERROR_MSG(fmt::format("NavTileHandle::create: path({}) not found tmx.!\n", 
+				Resmgr::getSingleton().matchRes(path)));
 
+			return NULL;
+		}
+					
+		char* cpath = strutil::wchar2char(results[0].c_str());
+		path = cpath;
+		free(cpath);
+	}
+	else
+	{
+		path = Resmgr::getSingleton().matchRes(params.begin()->second);
+	}
+	
+	return _create(path);
+}
+
+//-------------------------------------------------------------------------------------
+NavTileHandle* NavTileHandle::_create(const std::string& res)
+{
 	Tmx::Map *map = new Tmx::Map();
-	map->ParseFile(path.c_str());
+	map->ParseFile(res.c_str());
 
 	if (map->HasError()) 
 	{
-		ERROR_MSG(fmt::format("NavTileHandle::create: open({}) is error!\n", path));
+		ERROR_MSG(fmt::format("NavTileHandle::create: open({}) is error!\n", res));
 		delete map;
 		return NULL;
 	}
 	
 	bool mapdir = map->GetProperties().HasProperty("direction8");
 
-	DEBUG_MSG(fmt::format("NavTileHandle::create: ({})\n", name));
+	DEBUG_MSG(fmt::format("NavTileHandle::create: ({})\n", res));
 	DEBUG_MSG(fmt::format("\t==> map Width : {}\n", map->GetWidth()));
 	DEBUG_MSG(fmt::format("\t==> map Height : {}\n", map->GetHeight()));
 	DEBUG_MSG(fmt::format("\t==> tile Width : {} px\n", map->GetTileWidth()));
@@ -313,6 +383,7 @@ NavigationHandle* NavTileHandle::create(std::string name)
 		DEBUG_MSG(fmt::format("\t==> image Source : {}\n", tileset->GetImage()->GetSource().c_str()));
 		DEBUG_MSG(fmt::format("\t==> transparent Color (hex) : {}\n", tileset->GetImage()->GetTransparentColor()));
 		DEBUG_MSG(fmt::format("\t==> tiles Size : {}\n", tileset->GetTiles().size()));
+		
 		if (tileset->GetTiles().size() > 0) 
 		{
 			// Get a tile from the tileset.
@@ -326,14 +397,14 @@ NavigationHandle* NavTileHandle::create(std::string name)
 			}
 		}
 	}
-
+	
 	NavTileHandle* pNavTileHandle = new NavTileHandle(mapdir);
 	pNavTileHandle->pTilemap = map;
 	return pNavTileHandle;
 }
 
 //-------------------------------------------------------------------------------------
-bool NavTileHandle::validTile(int x, int y)const
+bool NavTileHandle::validTile(int x, int y) const
 {
 	if( x < 0 ||
 	    x >= pTilemap->GetWidth() ||
@@ -361,7 +432,6 @@ int NavTileHandle::getMap(int x, int y)
 //-------------------------------------------------------------------------------------
 bool NavTileHandle::MapSearchNode::IsSameState(MapSearchNode &rhs)
 {
-
 	// same state in a maze search is simply when (x,y) are the same
 	if( (x == rhs.x) &&
 		(y == rhs.y) )

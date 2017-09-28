@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav</Extensions>
     </Filter>
+    <Filter Include="Inline Files">
+      <UniqueIdentifier>{b10ba1db-79ee-4279-9dc9-e081dce04928}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ColorListBox.cpp">
@@ -155,6 +158,24 @@
       <Filter>Resource Files</Filter>
     </None>
     <None Include="ReadMe.txt" />
+    <None Include="res\error.bmp">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="res\info.bmp">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="res\warn.bmp">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="res\error1.bmp">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="res\info1.bmp">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="res\warn1.bmp">
+      <Filter>Resource Files</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="guiconsole.rc">

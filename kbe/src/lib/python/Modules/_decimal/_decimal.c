@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2008-2012 Stefan Krah. All rights reserved.
+ * Copyright (c) 2008-2016 Stefan Krah. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -39,8 +39,8 @@
 #include "memory.h"
 
 
-#if MPD_MAJOR_VERSION != 2
-  #error "libmpdec major version 2 required"
+#if !defined(MPD_VERSION_HEX) || MPD_VERSION_HEX < 0x02040100
+  #error "libmpdec version >= 2.4.1 required"
 #endif
 
 

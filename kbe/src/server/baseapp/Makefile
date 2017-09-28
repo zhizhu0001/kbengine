@@ -8,6 +8,7 @@ SRCS =						\
 	base_messages_forward_handler		\
 	data_download				\
 	data_downloads				\
+	entity_autoloader			\
 	base_remotemethod			\
 	forward_message_over_handler		\
 	initprogress_handler			\
@@ -16,7 +17,6 @@ SRCS =						\
 	main					\
 	proxy					\
 	proxy_forwarder				\
-	py_file_descriptor			\
 	profile
 
 ASMS =

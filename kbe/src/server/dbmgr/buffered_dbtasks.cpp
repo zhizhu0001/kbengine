@@ -2,7 +2,7 @@
 This source file is part of KBEngine
 For the latest info, see http://www.kbengine.org/
 
-Copyright (c) 2008-2012 KBEngine.
+Copyright (c) 2008-2017 KBEngine.
 
 KBEngine is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
@@ -17,12 +17,12 @@ GNU Lesser General Public License for more details.
 You should have received a copy of the GNU Lesser General Public License
 along with KBEngine.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include "dbmgr.hpp"
-#include "buffered_dbtasks.hpp"
-#include "thread/threadpool.hpp"
-#include "thread/threadguard.hpp"
-#include "dbmgr_lib/db_interface.hpp"
-#include "server/serverconfig.hpp"
+#include "dbmgr.h"
+#include "buffered_dbtasks.h"
+#include "thread/threadpool.h"
+#include "thread/threadguard.h"
+#include "db_interface/db_interface.h"
+#include "server/serverconfig.h"
 
 namespace KBEngine{
 
@@ -30,7 +30,8 @@ namespace KBEngine{
 Buffered_DBTasks::Buffered_DBTasks():
 dbid_tasks_(),
 entityid_tasks_(),
-mutex_()
+mutex_(),
+dbInterfaceName_()
 {
 }
 
@@ -99,7 +100,7 @@ void Buffered_DBTasks::addTask(EntityDBTask* pTask)
 	}
 
 	mutex_.unlockMutex();
-	DBUtil::pThreadPool()->addTask(pTask);
+	DBUtil::pThreadPool(dbInterfaceName_)->addTask(pTask);
 }
 
 //-------------------------------------------------------------------------------------
@@ -109,7 +110,7 @@ EntityDBTask* Buffered_DBTasks::tryGetNextTask(EntityDBTask* pTask)
 
 	if(g_kbeSrvConfig.getDBMgr().debugDBMgr)
 	{
-		DEBUG_MSG(fmt::format("Buffered_DBTasks::tryGetNextTask(): finiTask(dbid={}, entityID={}\ndbidlist={}\nentityidlist={}\n", 
+		DEBUG_MSG(fmt::format("Buffered_DBTasks::tryGetNextTask(): finiTask(dbid={}, entityID={}\ndbidlist={}\nentityidlist={})\n", 
 			pTask->EntityDBTask_entityDBID(), pTask->EntityDBTask_entityID(), printBuffered_dbid_(), printBuffered_entityID_())); 
 	}
 
@@ -204,6 +205,9 @@ std::string Buffered_DBTasks::printBuffered_dbid_()
 
         for (DBID_TASKS_MAP::iterator i = res.first; i != res.second; ++i)  
         {  
+			if (i == dbid_tasks_.end())
+				break;
+
 			++count;
         } 
 
@@ -222,8 +226,12 @@ std::string Buffered_DBTasks::printBuffered_entityID_()
     {  
 		int count = 0;
         std::pair<ENTITYID_TASKS_MAP::iterator, ENTITYID_TASKS_MAP::iterator> res = entityid_tasks_.equal_range(iter->first);  
+
         for (ENTITYID_TASKS_MAP::iterator i = res.first; i != res.second; ++i)  
         {  
+			if (i == entityid_tasks_.end())
+				break;
+
 			++count;
         }  
 

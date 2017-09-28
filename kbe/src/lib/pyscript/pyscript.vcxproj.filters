@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav</Extensions>
     </Filter>
+    <Filter Include="Inline Files">
+      <UniqueIdentifier>{72fe3476-497e-4516-a7c3-f3228cab1277}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="copy.cpp">
@@ -69,84 +72,121 @@
     <ClCompile Include="vector4.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="py_gc.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="scriptstdout.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="scriptstderr.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="copy.hpp">
+    <ClInclude Include="copy.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="install_py_dlls.hpp">
+    <ClInclude Include="install_py_dlls.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="map.hpp">
+    <ClInclude Include="map.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="math.hpp">
+    <ClInclude Include="math.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pickler.hpp">
+    <ClInclude Include="pickler.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="py_memorystream.hpp">
+    <ClInclude Include="py_memorystream.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pyattr_macro.hpp">
+    <ClInclude Include="pyobject_pointer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pyobject_call_template.hpp">
+    <ClInclude Include="pyprofile.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pyobject_pointer.hpp">
+    <ClInclude Include="pyprofile_handler.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pyprofile.hpp">
+    <ClInclude Include="pystruct.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pyprofile_handler.hpp">
+    <ClInclude Include="pythread_lock.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pystruct.hpp">
+    <ClInclude Include="pywatcher.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pythread_lock.hpp">
+    <ClInclude Include="script.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pywatcher.hpp">
+    <ClInclude Include="scriptobject.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="script.hpp">
+    <ClInclude Include="scriptstdouterr.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="scriptobject.hpp">
+    <ClInclude Include="scriptstdouterrhook.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="scriptstdouterr.hpp">
+    <ClInclude Include="sequence.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="scriptstdouterrhook.hpp">
+    <ClInclude Include="vector2.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="sequence.hpp">
+    <ClInclude Include="vector3.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="vector2.hpp">
+    <ClInclude Include="vector4.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="vector3.hpp">
+    <ClInclude Include="py_gc.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="vector4.hpp">
+    <ClInclude Include="scriptstdout.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="scriptstderr.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="py_macros.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="map.ipp" />
-    <None Include="py_memorystream.ipp" />
-    <None Include="pywatcher.ipp" />
     <None Include="ReadMe.txt" />
-    <None Include="script.ipp" />
-    <None Include="scriptobject.ipp" />
-    <None Include="scriptstdouterr.ipp" />
-    <None Include="scriptstdouterrhook.ipp" />
-    <None Include="sequence.ipp" />
+    <None Include="map.inl">
+      <Filter>Inline Files</Filter>
+    </None>
+    <None Include="py_memorystream.inl">
+      <Filter>Inline Files</Filter>
+    </None>
+    <None Include="pywatcher.inl">
+      <Filter>Inline Files</Filter>
+    </None>
+    <None Include="script.inl">
+      <Filter>Inline Files</Filter>
+    </None>
+    <None Include="scriptobject.inl">
+      <Filter>Inline Files</Filter>
+    </None>
+    <None Include="scriptstdouterr.inl">
+      <Filter>Inline Files</Filter>
+    </None>
+    <None Include="scriptstdouterrhook.inl">
+      <Filter>Inline Files</Filter>
+    </None>
+    <None Include="sequence.inl">
+      <Filter>Inline Files</Filter>
+    </None>
+    <None Include="scriptstdout.inl">
+      <Filter>Inline Files</Filter>
+    </None>
+    <None Include="scriptstderr.inl">
+      <Filter>Inline Files</Filter>
+    </None>
   </ItemGroup>
 </Project>

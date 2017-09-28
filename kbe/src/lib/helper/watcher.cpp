@@ -2,7 +2,7 @@
 This source file is part of KBEngine
 For the latest info, see http://www.kbengine.org/
 
-Copyright (c) 2008-2012 KBEngine.
+Copyright (c) 2008-2017 KBEngine.
 
 KBEngine is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
@@ -18,8 +18,8 @@ You should have received a copy of the GNU Lesser General Public License
 along with KBEngine.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "watcher.hpp"
-#include "resmgr/resmgr.hpp"
+#include "watcher.h"
+#include "resmgr/resmgr.h"
 
 namespace KBEngine{
 WatcherPaths* pWatcherPaths = NULL;
@@ -31,7 +31,6 @@ WatcherObject::WatcherObject(std::string path):
   name_(),
   strval_(),
   id_(0),
-  s_(),
   numWitness_(0)
 {
 	std::string::size_type fi = path.find_first_of('/');
@@ -85,7 +84,7 @@ Watchers& Watchers::rootWatchers()
 void Watchers::addToStream(MemoryStream* s)
 {
 	WATCHER_MAP::iterator iter = watcherObjs_.begin();
-	for(; iter != watcherObjs_.end(); iter++)
+	for(; iter != watcherObjs_.end(); ++iter)
 	{
 		iter->second->addToStream(s);
 	}
@@ -134,7 +133,7 @@ bool Watchers::hasWatcher(const std::string& name)
 void Watchers::readWatchers(MemoryStream* s)
 {
 	WATCHER_MAP::iterator iter = watcherObjs_.begin();
-	for(; iter != watcherObjs_.end(); iter++)
+	for(; iter != watcherObjs_.end(); ++iter)
 	{
 		iter->second->addToInitStream(s);
 	}
@@ -345,7 +344,7 @@ bool WatcherPaths::delWatcher(const std::string& fullpath)
 	vec.erase(vec.end() - 1);
 
 	WatcherPaths* pCurrWatcherPaths = this;
-	for(std::vector<std::string>::iterator iter = vec.begin(); iter != vec.end(); iter++)
+	for(std::vector<std::string>::iterator iter = vec.begin(); iter != vec.end(); ++iter)
 	{
 		WATCHER_PATHS& paths = pCurrWatcherPaths->watcherPaths();
 		KBEUnordered_map<std::string, KBEShared_ptr<WatcherPaths> >::iterator fiter = paths.find((*iter));
@@ -372,7 +371,7 @@ bool WatcherPaths::hasWatcher(const std::string& fullpath)
 	vec.erase(vec.end() - 1);
 
 	WatcherPaths* pCurrWatcherPaths = this;
-	for(std::vector<std::string>::iterator iter = vec.begin(); iter != vec.end(); iter++)
+	for(std::vector<std::string>::iterator iter = vec.begin(); iter != vec.end(); ++iter)
 	{
 		WATCHER_PATHS& paths = pCurrWatcherPaths->watcherPaths();
 		KBEUnordered_map<std::string, KBEShared_ptr<WatcherPaths> >::iterator fiter = paths.find((*iter));
@@ -406,7 +405,7 @@ KBEShared_ptr< WatcherObject > WatcherPaths::getWatcher(const std::string& fullp
 	vec.erase(vec.end() - 1);
 
 	WatcherPaths* pCurrWatcherPaths = this;
-	for(std::vector<std::string>::iterator iter = vec.begin(); iter != vec.end(); iter++)
+	for(std::vector<std::string>::iterator iter = vec.begin(); iter != vec.end(); ++iter)
 	{
 		WATCHER_PATHS& paths = pCurrWatcherPaths->watcherPaths();
 		KBEUnordered_map<std::string, KBEShared_ptr<WatcherPaths> >::iterator fiter = paths.find((*iter));
@@ -433,10 +432,13 @@ void WatcherPaths::readWatchers(std::string path, MemoryStream* s)
 		std::vector<std::string> vec;
 		KBEngine::strutil::kbe_split(path, '/', vec);
 		
+		if (vec.size() <= 0)
+			return;
+
 		path.erase(0, vec[0].size() + 1);
 
 		WATCHER_PATHS::iterator iter = watcherPaths_.begin();
-		for(; iter != watcherPaths_.end(); iter++)
+		for(; iter != watcherPaths_.end(); ++iter)
 		{
 			if(iter->first == vec[0])
 			{
@@ -453,14 +455,14 @@ void WatcherPaths::dirPath(std::string path, std::vector<std::string>& vec)
 	if(path.size() == 0)
 	{
 		WATCHER_PATHS::iterator iter = watcherPaths_.begin();
-		for(; iter != watcherPaths_.end(); iter++)
+		for(; iter != watcherPaths_.end(); ++iter)
 		{
 			vec.push_back(iter->first);
 		}
 
 		Watchers::WATCHER_MAP& map = watchers_.watcherObjs();
 		Watchers::WATCHER_MAP::iterator mapiter = map.begin();
-		for(; mapiter != map.end(); mapiter++)
+		for(; mapiter != map.end(); ++mapiter)
 		{
 			vec.push_back(mapiter->first);
 		}
@@ -473,7 +475,7 @@ void WatcherPaths::dirPath(std::string path, std::vector<std::string>& vec)
 		path.erase(0, tvec[0].size() + 1);
 
 		WATCHER_PATHS::iterator iter = watcherPaths_.begin();
-		for(; iter != watcherPaths_.end(); iter++)
+		for(; iter != watcherPaths_.end(); ++iter)
 		{
 			if(iter->first == tvec[0])
 			{
@@ -495,7 +497,7 @@ void WatcherPaths::readChildPaths(std::string srcPath, std::string path, MemoryS
 		(*s) << srcPath;
 
 		WATCHER_PATHS::iterator iter = watcherPaths_.begin();
-		for(; iter != watcherPaths_.end(); iter++)
+		for(; iter != watcherPaths_.end(); ++iter)
 		{
 			(*s) << iter->first;
 		}
@@ -505,10 +507,13 @@ void WatcherPaths::readChildPaths(std::string srcPath, std::string path, MemoryS
 		std::vector<std::string> vec;
 		KBEngine::strutil::kbe_split(path, '/', vec);
 		
+		if (vec.size() <= 0)
+			return;
+
 		path.erase(0, vec[0].size() + 1);
 
 		WATCHER_PATHS::iterator iter = watcherPaths_.begin();
-		for(; iter != watcherPaths_.end(); iter++)
+		for(; iter != watcherPaths_.end(); ++iter)
 		{
 			if(iter->first == vec[0])
 			{

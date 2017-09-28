@@ -18,25 +18,29 @@ SRCS =						\
 	entity_coordinate_node			\
 	ghost_manager				\
 	history_event				\
-	loadnavmesh_threadtasks			\
+	initprogress_handler			\
+	loadnavmesh_threadtasks		\
 	main					\
 	space					\
 	spaces					\
-	move_controller				\
+	space_viewer				\
+	move_controller			\
 	moveto_entity_handler			\
 	moveto_point_handler			\
 	navigate_handler			\
 	profile					\
 	proximity_controller			\
-	coordinate_node				\
+	coordinate_node			\
 	coordinate_system			\
+	rotator_handler				\
 	range_trigger				\
 	range_trigger_node			\
 	real_entity_method			\
 	trap_trigger				\
+	turn_controller				\
 	updatable				\
 	updatables				\
-	watch_obj_pools				\
+	watch_obj_pools			\
 	witness					\
 	witnessed_timeout_handler
 
@@ -46,7 +50,7 @@ MY_LIBS =		\
 	entitydef	\
 	server		\
 	pyscript	\
-	network		\
+	network	\
 	navigation	\
 	thread
 	

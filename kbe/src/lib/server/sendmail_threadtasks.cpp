@@ -2,7 +2,7 @@
 This source file is part of KBEngine
 For the latest info, see http://www.kbengine.org/
 
-Copyright (c) 2008-2012 KBEngine.
+Copyright (c) 2008-2017 KBEngine.
 
 KBEngine is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
@@ -19,9 +19,9 @@ along with KBEngine.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "jwsmtp.h"
-#include "sendmail_threadtasks.hpp"
-#include "server/serverconfig.hpp"
-#include "cstdkbe/deadline.hpp"
+#include "sendmail_threadtasks.h"
+#include "server/serverconfig.h"
+#include "common/deadline.h"
 
 namespace KBEngine{
 
@@ -44,6 +44,7 @@ bool SendEMailTask::process()
 
 	KBEngine::strutil::kbe_replace(mailmessage, "${username}", emailaddr_);
 	KBEngine::strutil::kbe_replace(mailmessage, "${code}", code_);
+	mailmessage = KBEngine::strutil::kbe_trim(mailmessage);
 
 	m.setmessageHTML(mailmessage);
 

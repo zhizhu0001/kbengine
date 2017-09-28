@@ -2,7 +2,7 @@
 This source file is part of KBEngine
 For the latest info, see http://www.kbengine.org/
 
-Copyright (c) 2008-2012 KBEngine.
+Copyright (c) 2008-2017 KBEngine.
 
 KBEngine is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
@@ -18,10 +18,10 @@ You should have received a copy of the GNU Lesser General Public License
 along with KBEngine.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "trap_trigger.hpp"
-#include "entity.hpp"
-#include "proximity_controller.hpp"	
-#include "entity_coordinate_node.hpp"
+#include "trap_trigger.h"
+#include "entity.h"
+#include "proximity_controller.h"	
+#include "entity_coordinate_node.h"
 
 namespace KBEngine{	
 
@@ -42,6 +42,7 @@ y_(y)
 //-------------------------------------------------------------------------------------
 ProximityController::ProximityController(Entity* pEntity):
 Controller(pEntity),
+pTrapTrigger_(NULL),
 xz_(0.f),
 y_(0.f)
 {
@@ -71,6 +72,14 @@ void ProximityController::createFromStream(KBEngine::MemoryStream& s)
 //-------------------------------------------------------------------------------------
 bool ProximityController::reinstall(CoordinateNode* pCoordinateNode)
 {
+	// 跨cellapp场景跳转时可能出现这种情况
+	// 因为使用ProximityController::ProximityController(Entity* pEntity)构造
+	if(pTrapTrigger_ == NULL)
+	{
+		pTrapTrigger_ = new TrapTrigger(static_cast<EntityCoordinateNode*>(pCoordinateNode), 
+								this, xz_, y_);
+	}
+
 	return pTrapTrigger_->reinstall(pCoordinateNode);
 }
 

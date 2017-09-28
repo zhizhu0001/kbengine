@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav</Extensions>
     </Filter>
+    <Filter Include="Inline Files">
+      <UniqueIdentifier>{3b09aaa8-4315-47df-9798-0c02319c0756}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="resmgr.cpp">
@@ -23,10 +26,10 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="resmgr.hpp">
+    <ClInclude Include="resmgr.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="resourceobject.hpp">
+    <ClInclude Include="resourceobject.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

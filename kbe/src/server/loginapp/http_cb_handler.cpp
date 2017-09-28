@@ -2,7 +2,7 @@
 This source file is part of KBEngine
 For the latest info, see http://www.kbengine.org/
 
-Copyright (c) 2008-2012 KBEngine.
+Copyright (c) 2008-2017 KBEngine.
 
 KBEngine is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published by
@@ -18,17 +18,17 @@ You should have received a copy of the GNU Lesser General Public License
 along with KBEngine.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "loginapp.hpp"
-#include "http_cb_handler.hpp"
-#include "network/event_dispatcher.hpp"
-#include "network/event_poller.hpp"
-#include "network/endpoint.hpp"
-#include "network/bundle.hpp"
-#include "network/http_utility.hpp"
-#include "helper/debug_helper.hpp"
-#include "server/serverconfig.hpp"
+#include "loginapp.h"
+#include "http_cb_handler.h"
+#include "network/event_dispatcher.h"
+#include "network/event_poller.h"
+#include "network/endpoint.h"
+#include "network/bundle.h"
+#include "network/http_utility.h"
+#include "helper/debug_helper.h"
+#include "server/serverconfig.h"
 
-#include "../../server/dbmgr/dbmgr_interface.hpp"
+#include "../../server/dbmgr/dbmgr_interface.h"
 
 namespace KBEngine{
 
@@ -37,7 +37,7 @@ HTTPCBHandler::HTTPCBHandler():
 pEndPoint_(NULL),
 clients_()
 {
-	pEndPoint_ = new Mercury::EndPoint();
+	pEndPoint_ = Network::EndPoint::createPoolObject();
 
 	pEndPoint_->socket(SOCK_STREAM);
 
@@ -50,8 +50,9 @@ clients_()
 	if (pEndPoint_->bind(htons(g_kbeSrvConfig.getLoginApp().http_cbport), 
 		Loginapp::getSingleton().networkInterface().extaddr().ip) == -1)
 	{
-		ERROR_MSG(fmt::format("HTTPCBHandler::bind({}): \n",
-			 kbe_strerror()));
+		ERROR_MSG(fmt::format("HTTPCBHandler::bind({}): {}:{}\n",
+			 kbe_strerror(), inet_ntoa((struct in_addr&)Loginapp::getSingleton().networkInterface().extaddr().ip),
+			g_kbeSrvConfig.getLoginApp().http_cbport));
 
 		pEndPoint_->close();
 		return;
@@ -59,8 +60,9 @@ clients_()
 
 	if(pEndPoint_->listen() == -1)
 	{
-		ERROR_MSG(fmt::format("HTTPCBHandler::listeningSocket({}): \n",
-			 kbe_strerror()));
+		ERROR_MSG(fmt::format("HTTPCBHandler::listeningSocket({}): {}:{}\n",
+			 kbe_strerror(), inet_ntoa((struct in_addr&)Loginapp::getSingleton().networkInterface().extaddr().ip),
+			g_kbeSrvConfig.getLoginApp().http_cbport));
 
 		pEndPoint_->close();
 		return;
@@ -68,7 +70,7 @@ clients_()
 
 	pEndPoint_->setnonblocking(true);
 
-	Loginapp::getSingleton().networkInterface().dispatcher().registerFileDescriptor(*pEndPoint_, this);
+	Loginapp::getSingleton().networkInterface().dispatcher().registerReadFileDescriptor(*pEndPoint_, this);
 
 	INFO_MSG(fmt::format("HTTPCBHandler::bind: {}:{}\n",
 		inet_ntoa((struct in_addr&)Loginapp::getSingleton().networkInterface().extaddr().ip),
@@ -79,8 +81,10 @@ clients_()
 HTTPCBHandler::~HTTPCBHandler()
 {
 	clients_.clear();
-	Loginapp::getSingleton().networkInterface().dispatcher().deregisterFileDescriptor(*pEndPoint_);
-	SAFE_RELEASE(pEndPoint_);
+	Loginapp::getSingleton().networkInterface().dispatcher().deregisterReadFileDescriptor(*pEndPoint_);
+
+	Network::EndPoint::reclaimPoolObject(pEndPoint_);
+	pEndPoint_ = NULL;
 }
 
 //-------------------------------------------------------------------------------------
@@ -91,7 +95,7 @@ int HTTPCBHandler::handleInputNotification(int fd)
 		u_int16_t port;
 		u_int32_t addr;
 
-		Mercury::EndPoint* newclient = pEndPoint_->accept(&port, &addr);
+		Network::EndPoint* newclient = pEndPoint_->accept(&port, &addr);
 
 		if(newclient == NULL)
 		{
@@ -104,9 +108,9 @@ int HTTPCBHandler::handleInputNotification(int fd)
 		
 		newclient->setnonblocking(true);
 		CLIENT& client = clients_[*newclient];
-		client.endpoint = KBEShared_ptr< Mercury::EndPoint >(newclient);
+		client.endpoint = KBEShared_ptr< Network::EndPoint >(newclient);
 		client.state = 0;
-		Loginapp::getSingleton().networkInterface().dispatcher().registerFileDescriptor(*newclient, this);
+		Loginapp::getSingleton().networkInterface().dispatcher().registerReadFileDescriptor(*newclient, this);
 	}
 	else
 	{
@@ -115,11 +119,12 @@ int HTTPCBHandler::handleInputNotification(int fd)
 		{
 			ERROR_MSG(fmt::format("HTTPCBHandler:handleInputNotification: fd({}) not found!\n",
 				fd));
+
 			return 0;
 		}
 
 		CLIENT& client = iter->second;
-		Mercury::EndPoint* newclient = iter->second.endpoint.get();
+		Network::EndPoint* newclient = iter->second.endpoint.get();
 
 		char buffer[1024];
 		int len = newclient->recv(&buffer, 1024);
@@ -131,15 +136,16 @@ int HTTPCBHandler::handleInputNotification(int fd)
 		
 			if(len == 0)
 			{
-				Loginapp::getSingleton().networkInterface().dispatcher().deregisterFileDescriptor(*newclient);
+				Loginapp::getSingleton().networkInterface().dispatcher().deregisterReadFileDescriptor(*newclient);
 				clients_.erase(iter);
 			}
+
 			return 0;
 		}
 
 		if(client.state == 1)
 		{
-			Loginapp::getSingleton().networkInterface().dispatcher().deregisterFileDescriptor(*newclient);
+			Loginapp::getSingleton().networkInterface().dispatcher().deregisterReadFileDescriptor(*newclient);
 			clients_.erase(iter);
 		}
 
@@ -153,8 +159,8 @@ int HTTPCBHandler::handleInputNotification(int fd)
 			if(client.state != 1)
 			{
 				std::string response = "<?xml version='1.0'?><cross-domain-policy><allow-access-from domain=""*"" to-ports=""*"" /></cross-domain-policy>";
-				iter->second.endpoint->send(response.c_str(), response.size());
-				Loginapp::getSingleton().networkInterface().dispatcher().deregisterFileDescriptor(*newclient);
+				iter->second.endpoint->send(response.c_str(), (int)response.size());
+				Loginapp::getSingleton().networkInterface().dispatcher().deregisterReadFileDescriptor(*newclient);
 				clients_.erase(iter);
 			}
 
@@ -200,7 +206,7 @@ int HTTPCBHandler::handleInputNotification(int fd)
 		std::string code;
 		if(fi1 != std::string::npos && fi2 != std::string::npos)
 		{
-			int ilen = keys.size();
+			int ilen = (int)keys.size();
 			code.assign(s.c_str() + fi1 + ilen, fi2 - (fi1 + ilen));
 		}
 
@@ -231,10 +237,10 @@ int HTTPCBHandler::handleInputNotification(int fd)
 			if(type == 1)
 			{
 				// œÚdbmgrº§ªÓ’À∫≈
-				Mercury::Bundle bundle;
-				bundle.newMessage(DbmgrInterface::accountActivate);
-				bundle << code;
-				bundle.send(Loginapp::getSingleton().networkInterface(), dbmgrinfos->pChannel);
+				Network::Bundle* pBundle = Network::Bundle::createPoolObject();
+				(*pBundle).newMessage(DbmgrInterface::accountActivate);
+				(*pBundle) << code;
+				dbmgrinfos->pChannel->send(pBundle);
 
 				hellomessage = g_kbeSrvConfig.emailAtivationInfo_.backlink_hello_message;
 			}
@@ -253,7 +259,7 @@ int HTTPCBHandler::handleInputNotification(int fd)
 					client.state = 2;
 					if(fi1 < fi2)
 					{
-						int ilen = strlen("password=");
+						int ilen = (int)strlen("password=");
 						password.assign(s.c_str() + fi1 + ilen, fi2 - (fi1 + ilen));
 					}
 
@@ -269,7 +275,7 @@ int HTTPCBHandler::handleInputNotification(int fd)
 					{
 						if(fi1 < fi2)
 						{
-							int ilen = strlen("username=");
+							int ilen = (int)strlen("username=");
 							username.assign(s.c_str() + fi1 + ilen, fi2 - (fi1 + ilen));
 						}
 					}
@@ -278,12 +284,12 @@ int HTTPCBHandler::handleInputNotification(int fd)
 					password = HttpUtility::URLDecode(password);
 
 					// œÚdbmgr÷ÿ÷√’À∫≈
-					Mercury::Bundle bundle;
-					bundle.newMessage(DbmgrInterface::accountResetPassword);
-					bundle << KBEngine::strutil::kbe_trim(username);
-					bundle << KBEngine::strutil::kbe_trim(password);
-					bundle << code;
-					bundle.send(Loginapp::getSingleton().networkInterface(), dbmgrinfos->pChannel);
+					Network::Bundle* pBundle = Network::Bundle::createPoolObject();
+					(*pBundle).newMessage(DbmgrInterface::accountResetPassword);
+					(*pBundle) << KBEngine::strutil::kbe_trim(username);
+					(*pBundle) << KBEngine::strutil::kbe_trim(password);
+					(*pBundle) << code;
+					dbmgrinfos->pChannel->send(pBundle);
 				}
 
 				hellomessage = g_kbeSrvConfig.emailResetPasswordInfo_.backlink_hello_message;
@@ -299,7 +305,7 @@ int HTTPCBHandler::handleInputNotification(int fd)
 				{
 					if(fi1 < fi2)
 					{
-						int ilen = strlen("username=");
+						int ilen = (int)strlen("username=");
 						username.assign(s.c_str() + fi1 + ilen, fi2 - (fi1 + ilen));
 					}
 				}
@@ -308,12 +314,12 @@ int HTTPCBHandler::handleInputNotification(int fd)
 				{
 					username = HttpUtility::URLDecode(username);
 
-					// œÚdbmgr÷ÿ÷√’À∫≈
-					Mercury::Bundle bundle;
-					bundle.newMessage(DbmgrInterface::accountBindMail);
-					bundle << KBEngine::strutil::kbe_trim(username);
-					bundle << code;
-					bundle.send(Loginapp::getSingleton().networkInterface(), dbmgrinfos->pChannel);
+					// œÚdbmgr∞Û∂®’À∫≈’À∫≈
+					Network::Bundle* pBundle = Network::Bundle::createPoolObject();
+					(*pBundle).newMessage(DbmgrInterface::accountBindMail);
+					(*pBundle) << KBEngine::strutil::kbe_trim(username);
+					(*pBundle) << code;
+					dbmgrinfos->pChannel->send(pBundle);
 				}
 
 				hellomessage = g_kbeSrvConfig.emailBindInfo_.backlink_hello_message;
@@ -329,10 +335,10 @@ int HTTPCBHandler::handleInputNotification(int fd)
 
 				KBEngine::strutil::kbe_replace(hellomessage, "${code}", code);
 
-				std::string response = fmt::format("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\n\r\n{}", 
+				std::string response = fmt::format("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\n\r\n{}", 
 					hellomessage.size(), hellomessage);
 
-				newclient->send(response.c_str(), response.size());
+				newclient->send(response.c_str(), (int)response.size());
 			}
 
 			client.state = 2;
@@ -341,7 +347,7 @@ int HTTPCBHandler::handleInputNotification(int fd)
 		{
 			if(client.state != 2)
 			{
-				Loginapp::getSingleton().networkInterface().dispatcher().deregisterFileDescriptor(*newclient);
+				Loginapp::getSingleton().networkInterface().dispatcher().deregisterReadFileDescriptor(*newclient);
 				clients_.erase(iter);
 			}
 		}
@@ -354,7 +360,7 @@ int HTTPCBHandler::handleInputNotification(int fd)
 void HTTPCBHandler::onAccountActivated(std::string& code, bool success)
 {
 	std::map< int, CLIENT >::iterator iter = clients_.begin();
-	for(; iter != clients_.end(); iter++)
+	for(; iter != clients_.end(); ++iter)
 	{
 		if(iter->second.code == code)
 		{
@@ -368,10 +374,10 @@ void HTTPCBHandler::onAccountActivated(std::string& code, bool success)
 			else
 				message = g_kbeSrvConfig.emailAtivationInfo_.backlink_fail_message;
 
-			std::string response = fmt::format("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\n\r\n{}", 
+			std::string response = fmt::format("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\n\r\n{}", 
 				message.size(), message);
 
-			iter->second.endpoint->send(response.c_str(), response.size());
+			iter->second.endpoint->send(response.c_str(), (int)response.size());
 		}
 	}
 }
@@ -380,7 +386,7 @@ void HTTPCBHandler::onAccountActivated(std::string& code, bool success)
 void HTTPCBHandler::onAccountBindedEmail(std::string& code, bool success)
 {
 	std::map< int, CLIENT >::iterator iter = clients_.begin();
-	for(; iter != clients_.end(); iter++)
+	for(; iter != clients_.end(); ++iter)
 	{
 		if(iter->second.code == code)
 		{
@@ -394,10 +400,10 @@ void HTTPCBHandler::onAccountBindedEmail(std::string& code, bool success)
 			else
 				message = g_kbeSrvConfig.emailBindInfo_.backlink_fail_message;
 
-			std::string response = fmt::format("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\n\r\n{}", 
+			std::string response = fmt::format("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\n\r\n{}", 
 				message.size(), message);
 
-			iter->second.endpoint->send(response.c_str(), response.size());
+			iter->second.endpoint->send(response.c_str(), (int)response.size());
 		}
 	}
 }
@@ -406,7 +412,7 @@ void HTTPCBHandler::onAccountBindedEmail(std::string& code, bool success)
 void HTTPCBHandler::onAccountResetPassword(std::string& code, bool success)
 {
 	std::map< int, CLIENT >::iterator iter = clients_.begin();
-	for(; iter != clients_.end(); iter++)
+	for(; iter != clients_.end(); ++iter)
 	{
 		if(iter->second.code == code)
 		{
@@ -420,10 +426,10 @@ void HTTPCBHandler::onAccountResetPassword(std::string& code, bool success)
 			else
 				message = g_kbeSrvConfig.emailResetPasswordInfo_.backlink_fail_message;
 
-			std::string response = fmt::format("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\n\r\n{}", 
+			std::string response = fmt::format("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\n\r\n{}", 
 				message.size(), message);
 
-			iter->second.endpoint->send(response.c_str(), response.size());
+			iter->second.endpoint->send(response.c_str(), (int)response.size());
 		}
 	}
 }

@@ -11,7 +11,6 @@
 #ifdef _XOPEN_SOURCE
 #undef _XOPEN_SOURCE
 #endif
-
 #include "patchlevel.h"
 #include "pyconfig.h"
 #include "pymacconfig.h"
@@ -53,7 +52,9 @@
  * compiler command line when building Python in release mode; else
  * assert() calls won't be removed.
  */
+#ifndef NDEBUG
 #define NDEBUG
+#endif
 #include <assert.h>
 
 #include "pyport.h"

@@ -2,7 +2,6 @@ LIB =	server
 
 SRCS =				\
 	common			\
-	componentbridge		\
 	components		\
 	component_active_report_handler \
 	entity_app		\
@@ -11,6 +10,8 @@ SRCS =				\
 	globaldata_server	\
 	idallocate		\
 	pendingLoginmgr		\
+	py_file_descriptor	\
+	python_app		\
 	script_timers		\
 	serverapp		\
 	serverconfig		\
@@ -19,7 +20,8 @@ SRCS =				\
 	shutdowner		\
 	signal_handler		\
 	telnet_handler		\
-	telnet_server
+	telnet_server		\
+	python_app
 
 ifndef KBE_ROOT
 export KBE_ROOT := $(subst /kbe/src/lib/$(LIB),,$(CURDIR))
